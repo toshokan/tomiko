@@ -8,4 +8,5 @@ edition = "2018"
 
 [dependencies]
 tokio = { version = "^0.2", features = ["macros"] }
+serde = { version = "^1" , features = ["derive"] }
 warp = "^0.2"
