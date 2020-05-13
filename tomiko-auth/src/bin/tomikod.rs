@@ -14,6 +14,40 @@ struct AuthRequest {
     state: String
 }
 
+#[derive(Debug)]
+#[derive(serde::Serialize)]
+struct AuthResponse {
+    code: AuthCode,
+    state: String
+}
+
+struct Form<T> {
+    body: T
+}
+
+impl<T> warp::reply::Reply for Form<T>
+where
+    T: serde::Serialize + Send {
+    fn into_response(self) -> warp::reply::Response {
+	let content = serde_urlencoded::to_string(self.body)
+	    .expect("Failed to serialize the form");
+	let body = warp::hyper::Body::from(content);
+	let mut request = warp::http::Response::new(body);
+	request.headers_mut().insert(
+	    "content-type",
+	    warp::hyper::header::HeaderValue::from_static("application/x-www-form-urlencoded")
+	);
+	request
+    }
+}
+
+impl warp::reply::Reply for AuthResponse {
+    fn into_response(self) -> warp::reply::Response {
+	Form { body: self }
+	.into_response()
+    }
+}
+
 #[derive(Debug, Deserialize)]
 struct TokenRequest {
     grant_type: GrantType,
@@ -59,9 +93,18 @@ struct RedirectUri(String);
 #[serde(transparent)]
 struct ClientSecret(String);
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug)]
+#[derive(sqlx::Type)]
+#[sqlx(transparent)]
+#[derive(serde::Serialize, serde::Deserialize)]
 #[serde(transparent)]
 struct AuthCode(String);
+
+impl AuthCode {
+    pub fn random() -> Self {
+	Self(random_string(32))
+    }
+}
 
 #[derive(Debug)]
 #[derive(sqlx::FromRow)]
@@ -153,11 +196,38 @@ async fn ensure_uri(db: &SqlitePool, req: &AuthRequest) -> Result<(), warp::Reje
     Err(warp::reject::custom(ErrorResponse::default())) // TODO: Return the correct error
 }
 
-async fn authorize(db: SqlitePool, req: AuthRequest) -> Result<String, warp::Rejection> {
+async fn authorize(db: SqlitePool, req: AuthRequest) -> Result<AuthResponse, warp::Rejection> {
     ensure_uri(&db, &req).await?;
+    // ensure scopes
+
+    let resp = AuthResponse {
+	code: AuthCode::random(),
+	state: req.state
+    };
     
-    // Ok(debug_req(req))
-    Ok(random_string(32))
+    Ok(resp)
+}
+
+async fn give_token(db: SqlitePool, req: TokenRequest) -> Result<String, warp::Rejection> {
+    use sqlx::sqlite::SqliteQueryAs;
+    
+    let mut tx = db.begin().await.unwrap();
+    let code: Option<(AuthCode,)> = sqlx::query_as("SELECT code FROM codes WHERE client_id = ? AND code = ?")
+        .bind(&req.client_id)
+        .bind(&req.code)
+        .fetch_optional(&mut tx).await.unwrap();
+    if let Some(c) = code {
+	let r = sqlx::query("DELETE FROM codes WHERE client_id = ? AND CODE = ?")
+	    .bind(&req.client_id)
+	    .bind(&c.0)
+	    .execute(&mut tx).await;
+	if r.is_ok() {
+	    tx.commit().await.unwrap();
+	    return Ok("done!".to_string())
+	}
+    }
+
+    Err(warp::reject::custom(ErrorResponse::default()))
 }
 
 fn debug_req<R: std::fmt::Debug>(r: R) -> String {
@@ -203,9 +273,10 @@ async fn main() {
         .and_then(authorize);
 
     let token = warp::path("token")
+        .and(with_db(pool.clone()))
         .and(warp::filters::method::post())
         .and(warp::filters::body::form())
-        .map(debug_req::<TokenRequest>);
+        .and_then(give_token);
 
     let routes = auth
 	.or(token);

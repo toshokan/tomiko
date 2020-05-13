@@ -13,6 +13,7 @@ base64 = "^0.12"
 dotenv = "0.15"
 rand = "0.7"
 serde = { version = "^1" , features = ["derive"] }
+serde_urlencoded = "^0.6"
 sqlx = { version = "0.3", default-features = false, features = ["runtime-tokio", "sqlite", "macros"] }
 tokio = { version = "^0.2", features = ["macros"] }
 warp = "^0.2"
