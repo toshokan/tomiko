@@ -1,6 +1,8 @@
 [package]
 name = "tomiko"
+description = "Safe, asynchronous OAuth 2.0 authentication server"
 version = "0.1.0"
+license = "MIT/Apache-2.0"
 authors = ["toshokan <toshokan@shojigate.net>"]
 edition = "2018"
 
