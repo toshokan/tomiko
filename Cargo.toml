@@ -1,6 +1,6 @@
 [workspace]
 
 members = [
-	"tomiko"
+	"tomiko",
 	"tomiko-auth"
 ]
