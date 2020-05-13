@@ -9,6 +9,7 @@ edition = "2018"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+base64 = "^0.12"
 dotenv = "0.15"
 rand = "0.7"
 serde = { version = "^1" , features = ["derive"] }
