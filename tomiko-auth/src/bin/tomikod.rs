@@ -124,6 +124,14 @@ fn debug_req<R: std::fmt::Debug>(r: R) -> String {
     format!("Request {:?}", r)
 }
 
+async fn handle_reject(err: warp::Rejection) -> Result<impl warp::Reply, warp::Rejection> {
+    if let Some(Error::UnregisteredUri(uri)) = err.find() {
+	Ok(warp::reply::with_status(format!("{} is not a registered redirect URI for the client", uri.0), warp::http::StatusCode::BAD_REQUEST))
+    } else {
+	Err(err)
+    }
+}
+
 fn random_string(size: usize) -> String {
     use rand::Rng;
     
@@ -164,7 +172,8 @@ async fn main() {
     
     let v1 = oauth
         .and(warp::path("v1"))
-	.and(routes);
+	.and(routes)
+        .recover(handle_reject);
     
     warp::serve(v1).run(([127, 0, 0, 1], 8001)).await;
 }
