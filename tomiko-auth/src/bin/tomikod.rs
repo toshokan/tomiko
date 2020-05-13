@@ -78,12 +78,51 @@ struct RedirectRecord {
     uri: RedirectUri
 }
 
-#[derive(Debug)]
+#[allow(dead_code)] // TODO
+#[derive(Clone, Debug)]
+#[derive(serde::Serialize)]
+#[serde(rename_all="snake_case")]
 enum Error {
-    UnregisteredUri(RedirectUri)
+    InvalidRequest,
+    InvalidClient,
+    InvalidGrant,
+    UnauthorizedClient,
+    UnsupportedGrantType,
+    InvalidScope
 }
 
-impl warp::reject::Reject for Error {}
+impl Default for Error {
+    fn default() -> Self { Self::InvalidRequest }
+}
+
+#[derive(Clone, Debug, Default)]
+#[derive(serde::Serialize)]
+struct ErrorResponse {
+    error: Error,
+    #[serde(rename="error_description")]
+    #[serde(skip_serializing_if="Option::is_none")]
+    description: Option<String>
+}
+
+impl From<Error> for ErrorResponse {
+    fn from(error: Error) -> Self {
+	Self {
+	    error,
+	    ..Default::default()
+	}
+    }
+}
+
+impl warp::Reply for ErrorResponse {
+    fn into_response(self) -> warp::reply::Response {
+	warp::reply::with_status(
+	    warp::reply::json(&self),
+	    warp::http::StatusCode::BAD_REQUEST
+	).into_response()
+    }
+}
+
+impl warp::reject::Reject for ErrorResponse {}
 
 impl<'de> Deserialize<'de> for Scope {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
@@ -110,14 +149,15 @@ async fn ensure_uri(db: &SqlitePool, req: &AuthRequest) -> Result<(), warp::Reje
 	    return Ok(())
 	}
     }
-    
-    Err(warp::reject::custom(Error::UnregisteredUri(req.redirect_uri.clone())))
+
+    Err(warp::reject::custom(ErrorResponse::default())) // TODO: Return the correct error
 }
 
 async fn authorize(db: SqlitePool, req: AuthRequest) -> Result<String, warp::Rejection> {
     ensure_uri(&db, &req).await?;
     
-    Ok(debug_req(req))
+    // Ok(debug_req(req))
+    Ok(random_string(32))
 }
 
 fn debug_req<R: std::fmt::Debug>(r: R) -> String {
@@ -125,8 +165,8 @@ fn debug_req<R: std::fmt::Debug>(r: R) -> String {
 }
 
 async fn handle_reject(err: warp::Rejection) -> Result<impl warp::Reply, warp::Rejection> {
-    if let Some(Error::UnregisteredUri(uri)) = err.find() {
-	Ok(warp::reply::with_status(format!("{} is not a registered redirect URI for the client", uri.0), warp::http::StatusCode::BAD_REQUEST))
+    if let Some(e @ ErrorResponse { .. }) = err.find() {
+	Ok(e.clone())
     } else {
 	Err(err)
     }
@@ -135,10 +175,11 @@ async fn handle_reject(err: warp::Rejection) -> Result<impl warp::Reply, warp::R
 fn random_string(size: usize) -> String {
     use rand::Rng;
     
-    rand::thread_rng()
+    let s: String = rand::thread_rng()
         .sample_iter(rand::distributions::Alphanumeric)
         .take(size)
-        .collect()
+        .collect();
+    base64::encode_config(s, base64::URL_SAFE_NO_PAD)
 }
 
 fn with_db(pool: SqlitePool) -> impl Filter<Extract = (SqlitePool,), Error = Infallible> + Clone {
@@ -150,7 +191,6 @@ async fn main() {
     dotenv::dotenv().ok();
 
     let db_url = std::env::var("DATABASE_URL").expect("set DATABASE_URL");
-    
     let pool = SqlitePool::builder()
         .max_size(1)
         .build(&db_url).await.unwrap();
