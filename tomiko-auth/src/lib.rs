@@ -15,10 +15,10 @@ use async_trait::async_trait;
 	   derive(serde::Deserialize)
 )]
 pub struct AuthorizationRequest {
-    response_type: ResponseType,
-    client_id: ClientId,
-    redirect_uri: RedirectUri,
-    scope: Scope,
+    pub response_type: ResponseType,
+    pub client_id: ClientId,
+    pub redirect_uri: RedirectUri,
+    pub scope: Scope,
     pub state: String
 }
 
@@ -94,17 +94,17 @@ pub enum AuthorizationErrorKind {
 pub struct AuthorizationError {
     #[cfg_attr(feature = "serde-traits",
 	   serde(rename="error"))]
-    kind: AuthorizationErrorKind,
+    pub kind: AuthorizationErrorKind,
     #[cfg_attr(feature = "serde-traits",
 	   serde(rename="error_description"))]
-    description: Option<String>,
+    pub description: Option<String>,
     #[cfg_attr(feature = "serde-traits",
 	       serde(rename="error_uri"),
 	       serde(skip_serializing_if="Option::is_none"))]
-    uri: Option<String>,
+    pub uri: Option<String>,
     #[cfg_attr(feature = "serde-traits",
 	   serde(skip_serializing_if="Option::is_none"))]
-    state: Option<String>
+    pub state: Option<String>
 }
 
 #[derive(Debug, Clone)]
