@@ -13,4 +13,4 @@ serde-traits = ["serde"]
 
 [dependencies]
 sqlx = { version = "^0.3", default-features = false, features = ["runtime-tokio"], optional = true }
-serde = { version = "^1", default-features = false, features = ["derive"], optional = true }
+serde = { version = "^1", default-features = false, features = ["derive", "std"], optional = true }

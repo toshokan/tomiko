@@ -1,8 +1,5 @@
 use warp::reply::Response;
 
-mod request;
-mod response;
-
 use std::marker::PhantomData;
 
 struct FormEncoded<T> {

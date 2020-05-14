@@ -2,14 +2,15 @@
 name = "tomiko-auth"
 description = "Safe, asynchronous OAuth 2.0 authentication server"
 version = "0.1.0"
-license = "MIT/Apache-2.0"
+license = "MIT OR Apache-2.0"
 authors = ["toshokan <toshokan@shojigate.net>"]
 edition = "2018"
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+[features]
+default = []
+serde-traits = ["serde"]
 
 [dependencies]
+tomiko-core = { path = "../tomiko-core", default-features = false, features = ["serde-traits"] }
 dotenv = "0.15"
-serde = { version = "^1" , features = ["derive"] }
-
-
+serde = { version = "^1", features = ["derive"], optional = true }
