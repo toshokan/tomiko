@@ -1,5 +1,20 @@
+use tomiko_core::types::{
+    AuthCode,
+    ClientId,
+    RedirectUri
+};
+
 mod types;
 
+use types::RedirectRecord;
+
+use sqlx::sqlite::SqlitePool;
+
+#[async_trait::async_trait]
+pub trait Store {
+    async fn check_client_uri(&self, client_id: &ClientId, uri: &RedirectUri) -> Result<(), ()>;
+    async fn store_code(&self, client_id: &ClientId, code: AuthCode, state: String) -> Result<AuthCode, ()>;
+}
 // use types::*;
 // use tomiko_core::types::*;
 // use tomiko_util::random::FromRandom;
