@@ -1,3 +1,5 @@
+mod server;
+
 use warp::reply::Response;
 
 use std::marker::PhantomData;
