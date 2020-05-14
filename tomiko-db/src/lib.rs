@@ -15,26 +15,64 @@ pub trait Store {
     async fn check_client_uri(&self, client_id: &ClientId, uri: &RedirectUri) -> Result<(), ()>;
     async fn store_code(&self, client_id: &ClientId, code: AuthCode, state: String) -> Result<AuthCode, ()>;
 }
+
+#[derive(Debug)]
+pub struct DbStore {
+    pool: SqlitePool
+}
+
+impl DbStore {
+    pub async fn acquire(db_uri: &str) -> Result<Self, ()> {
+	let pool = SqlitePool::builder()
+	    .max_size(5)
+	    .build(db_uri)
+	    .await
+	    .map_err(|_| ())?; // TODO
+	
+	Ok(Self {
+	    pool
+	})
+    }
+}
+
+#[async_trait::async_trait]
+impl Store for DbStore {
+    async fn check_client_uri(&self, client_id: &ClientId, uri: &RedirectUri) -> Result<(), ()> {
+	use sqlx::sqlite::SqliteQueryAs;
+	
+	let mut conn = self.pool.acquire().await.unwrap();
+	let result = sqlx::query_as::<_, RedirectRecord>("SELECT * FROM uris WHERE client_id = ? AND uri = ?")
+            .bind(&client_id)
+            .bind(&uri)
+	    .fetch_optional(&mut conn).await
+	    .map_err(|_| ())?;
+
+	if result.is_some() {
+	    return Ok(())
+	}
+	Err(())
+    }
+    async fn store_code(&self, client_id: &ClientId, code: AuthCode, state: String) -> Result<AuthCode, ()> {
+	let mut conn = self.pool.acquire().await.unwrap();
+	
+	sqlx::query("INSERT INTO codes(client_id, code, state) VALUES(?, ?, ?)")
+	    .bind(&client_id)
+	    .bind(&code)
+	    .bind(&state)
+	    .execute(&mut conn).await
+	    .map_err(|_| ())?;
+	Ok(code)
+    }
+}
+
 // use types::*;
 // use tomiko_core::types::*;
 // use tomiko_util::random::FromRandom;
 
-// use sqlx::sqlite::SqlitePool;
+
 
 // async fn ensure_uri(db: &SqlitePool, client_id: &ClientId, uri: &RedirectUri) -> Result<(), ()> {
-//     use sqlx::sqlite::SqliteQueryAs;
-    
-//     let mut conn = db.acquire().await.unwrap();
-//     let result = sqlx::query_as::<_, RedirectRecord>("SELECT * FROM uris WHERE client_id = ? AND uri = ?")
-//         .bind(&client_id)
-//         .bind(&uri)
-// 	.fetch_optional(&mut conn).await;
 
-//     if let Ok(r) = result {
-// 	if r.is_some() {
-// 	    return Ok(())
-// 	}
-//     }
 
 //     Err(())
 //     // Err(warp::reject::custom(ErrorResponse::default())) // TODO: Return the correct error
