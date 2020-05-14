@@ -2,7 +2,7 @@
 name = "tomiko"
 description = "Safe, asynchronous OAuth 2.0 authentication server"
 version = "0.1.0"
-license = "MIT/Apache-2.0"
+license = "MIT OR Apache-2.0"
 authors = ["toshokan <toshokan@shojigate.net>"]
 edition = "2018"
 
@@ -13,3 +13,4 @@ tomiko-core = { path = "../tomiko-core" }
 tomiko-auth = { path = "../tomiko-auth" }
 tomiko-db = { path = "../tomiko-db" }
 tomiko-http = { path = "../tomiko-http" }
+tokio = { version = "^0.2", features = ["macros"] }
