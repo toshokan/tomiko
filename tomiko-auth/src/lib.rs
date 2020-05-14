@@ -51,6 +51,7 @@ pub struct TokenType(String);
 	   derive(serde::Serialize)
 )]
 
+#[derive(Debug)]
 pub struct AccessTokenResponse<T> {
     access_token: T,
     token_type: String,
@@ -59,6 +60,7 @@ pub struct AccessTokenResponse<T> {
     scope: Option<Scope>
 }
 
+#[derive(Debug)]
 #[cfg_attr(feature = "serde-traits",
 	   derive(serde::Serialize),
 	   serde(rename_all="snake_case")
@@ -90,6 +92,7 @@ pub struct AuthorizationError {
     state: Option<String>
 }
 
+#[derive(Debug)]
 #[cfg_attr(feature = "serde-traits",
 	   derive(serde::Serialize),
 	   serde(rename_all="snake_case")
@@ -103,6 +106,7 @@ pub enum AccessTokenErrorKind {
     InvalidScope
 }
 
+#[derive(Debug)]
 #[cfg_attr(feature = "serde-traits",
 	   derive(serde::Serialize),
 	   serde(rename_all="snake_case")
