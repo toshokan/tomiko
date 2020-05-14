@@ -1,9 +1,18 @@
-use tomiko_auth::{AuthorizationRequest, AuthenticationCodeFlow};
+use tomiko_auth::{AuthorizationRequest, AuthorizationError, AccessTokenError, AuthenticationCodeFlow};
 use super::FormEncoded;
 
-use warp::{Filter, Reply};
+use warp::{Filter, Reply, Rejection};
 use std::sync::Arc;
 
+#[derive(Debug, Clone)]
+#[derive(serde::Serialize)]
+#[serde(untagged)]
+enum AuthRejection {
+    Authorization(AuthorizationError),
+    AccessToken(AccessTokenError)
+}
+
+impl warp::reject::Reject for AuthRejection {}
 
 
 #[derive(Debug, Clone)]
@@ -17,6 +26,17 @@ impl<T> Server<T> {
 	    driver
 	}
     }
+
+    async fn handle_reject(err: Rejection) -> Result<impl Reply, Rejection> {
+	use AuthRejection::*;
+	if let Some(e) = err.find::<AuthRejection>() {
+	    let encoded = FormEncoded::encode(e.clone()).unwrap();
+	    let reply = warp::reply::with_status(encoded, warp::http::StatusCode::BAD_REQUEST);
+	    Ok(reply)
+	} else {
+	    Err(err)
+	}
+    }
 }
 
 fn with<T: Clone + Send>(t: T) -> impl Filter<Extract = (T,), Error = std::convert::Infallible> + Clone{
@@ -24,10 +44,15 @@ fn with<T: Clone + Send>(t: T) -> impl Filter<Extract = (T,), Error = std::conve
 }
 
 impl<T: AuthenticationCodeFlow + Send + Sync + 'static> Server<T> {
-    async fn authenticate(driver: &T, req: AuthorizationRequest) -> Result<impl Reply, warp::Rejection> {
-	let result = driver.authorization_request(req).await.unwrap(); // TODO
-	let encoded = FormEncoded::encode(result).unwrap(); // TODO
-	Ok(encoded)
+    async fn authenticate(driver: &T, req: AuthorizationRequest) -> Result<impl Reply, Rejection> {
+	let result = driver.authorization_request(req).await;
+	match result {
+	    Ok(result) => {
+		let encoded = FormEncoded::encode(result).unwrap(); // TODO
+		Ok(encoded)
+	    },
+	    Err(e) => Err(warp::reject::custom(AuthRejection::Authorization(e)))
+	}
     }
     
     pub async fn serve(self) -> Option<()> {
@@ -43,7 +68,8 @@ impl<T: AuthenticationCodeFlow + Send + Sync + 'static> Server<T> {
 
 	let routes = oauth
 	    .and(warp::path("v1"))
-	    .and(auth);
+	    .and(auth)
+	    .recover(Self::handle_reject);
 	
 	warp::serve(routes)
 	    .run(([127, 0, 0, 1], 8001))

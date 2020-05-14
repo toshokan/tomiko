@@ -10,6 +10,10 @@ use async_trait::async_trait;
 #[derive(Default)]
 struct OAuthDriver;
 
+impl OAuthDriver {
+
+}
+
 #[async_trait]
 impl AuthenticationCodeFlow for OAuthDriver {
     async fn authorization_request(&self, req: AuthorizationRequest) -> Result<AuthorizationResponse, AuthorizationError> {
