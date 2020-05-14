@@ -65,31 +65,6 @@ impl Store for DbStore {
     }
 }
 
-// use types::*;
-// use tomiko_core::types::*;
-// use tomiko_util::random::FromRandom;
-
-
-
-// async fn ensure_uri(db: &SqlitePool, client_id: &ClientId, uri: &RedirectUri) -> Result<(), ()> {
-
-
-//     Err(())
-//     // Err(warp::reject::custom(ErrorResponse::default())) // TODO: Return the correct error
-// }
-
-// async fn generate_code(db: &SqlitePool, client_id: &ClientId) -> Result<AuthCode, sqlx::Error> {
-//     let mut conn = db.acquire().await.unwrap();
-    
-//     let code = AuthCode::from_random();
-//     sqlx::query("INSERT INTO codes(client_id, code) VALUES(?, ?)")
-//         .bind(&client_id)
-//         .bind(&code)
-//         .execute(&mut conn).await?;
-
-//     Ok(code)
-// }
-
 // async fn give_token(db: SqlitePool, client_id: &ClientId, code: &AuthCode) -> Result<String, ()> {
 //     use sqlx::sqlite::SqliteQueryAs;
     
