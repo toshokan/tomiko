@@ -35,7 +35,7 @@ impl AuthenticationCodeFlow for OAuthDriver {
 	Ok(response)
     }
 
-    async fn access_token_request<T>(&self, req: TokenRequest) -> Result<AccessTokenResponse<T>, AccessTokenError> {
+    async fn access_token_request<T>(&self, _req: TokenRequest) -> Result<AccessTokenResponse<T>, AccessTokenError> {
 	panic!("access_token_req")
     }
 }
