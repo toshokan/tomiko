@@ -32,6 +32,8 @@ impl<T> Server<T> {
 	    let encoded = FormEncoded::encode(e.clone()).unwrap();
 	    let reply = warp::reply::with_status(encoded, warp::http::StatusCode::BAD_REQUEST);
 	    Ok(reply)
+	} else if let Some(e) = err.find::<warp::reject::InvalidQuery>() {
+	    unimplemented!("Error handling for deserialize") // TODO
 	} else {
 	    Err(err)
 	}
@@ -62,7 +64,7 @@ impl<T: AuthenticationCodeFlow + Send + Sync + 'static> Server<T> {
 	    .and(with(driver.clone()))
 	    .and(warp::filters::query::query())
 	    .and_then(|driver: Arc<T>, req: AuthorizationRequest| async move {
-		Self::authenticate(&driver, req).await
+	    	Self::authenticate(&driver, req).await
 	    });
 
 	let routes = oauth
