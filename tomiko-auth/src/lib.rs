@@ -8,6 +8,8 @@ use tomiko_core::types::{
     ResponseType
 };
 
+use async_trait::async_trait;
+
 #[derive(Debug)]
 #[cfg_attr(feature = "serde-traits",
 	   derive(serde::Deserialize)
@@ -123,7 +125,8 @@ pub struct AccessTokenError {
     uri: Option<String>
 }
 
+#[async_trait]
 pub trait AuthenticationCodeFlow {
-    fn authorization_request(req: AuthorizationRequest) -> Result<AuthorizationResponse, AuthorizationError>;
-    fn access_token_request<T>(req: TokenRequest) -> Result<AccessTokenResponse<T>, AccessTokenError>;
+    async fn authorization_request(req: AuthorizationRequest) -> Result<AuthorizationResponse, AuthorizationError>;
+    async fn access_token_request<T>(req: TokenRequest) -> Result<AccessTokenResponse<T>, AccessTokenError>;
 }

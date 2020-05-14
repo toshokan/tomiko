@@ -1,4 +1,4 @@
-mod server;
+pub mod server;
 
 use warp::reply::Response;
 
