@@ -5,10 +5,13 @@ use tomiko_auth::{AuthenticationCodeFlow,
 use tomiko_util::random::FromRandom;
 
 use tomiko_http::server::Server;
+use tomiko_db::{Store, DbStore};
 use async_trait::async_trait;
 
-#[derive(Default)]
-struct OAuthDriver;
+#[derive(Debug)]
+struct OAuthDriver {
+    store: DbStore
+}
 
 impl OAuthDriver {
     async fn validate_client(_client_id: &ClientId, _redirect_uri: &RedirectUri, state: &str) -> Result<(), AuthorizationError> {
@@ -41,13 +44,22 @@ impl AuthenticationCodeFlow for OAuthDriver {
 }
 
 async fn tomikod() -> Option<()> {
-    let server = Server::new(OAuthDriver::default());
+    let uri = std::env::var("DATABASE_URL")
+	.expect("Supply a DATABASE_URL");
+    
+    let store = DbStore::acquire(&uri).await.ok()?;
+    let driver = OAuthDriver {
+	store
+    };
+    let server = Server::new(driver);
     server.serve().await;
     Some(())
 }
 
 #[tokio::main]
 async fn main() -> Result<(), ()> {
+    dotenv::dotenv().ok();
+    
     tomikod()
 	.await
 	.ok_or(())
