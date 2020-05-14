@@ -13,6 +13,7 @@ tomiko-core = { path = "../tomiko-core" }
 tomiko-auth = { path = "../tomiko-auth" }
 tomiko-db = { path = "../tomiko-db" }
 tomiko-http = { path = "../tomiko-http" }
+tomiko-util = { path = "../tomiko-util" }
 async-trait = "^0.1"
 dotenv = "0.15"
 tokio = { version = "^0.2", features = ["macros"] }

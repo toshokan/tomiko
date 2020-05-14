@@ -19,7 +19,7 @@ pub struct AuthorizationRequest {
     client_id: ClientId,
     redirect_uri: RedirectUri,
     scope: Scope,
-    state: String
+    pub state: String
 }
 
 #[derive(Debug)]
@@ -41,6 +41,15 @@ pub struct TokenRequest {
 pub struct AuthorizationResponse {
     code: AuthCode,
     state: String,
+}
+
+impl AuthorizationResponse {
+    pub fn new(code: AuthCode, state: String) -> Self {
+	Self {
+	    code,
+	    state
+	}
+    }
 }
 
 #[derive(Debug)]
@@ -77,6 +86,7 @@ pub enum AuthorizationErrorKind {
     TemporarilyUnavailable
 }
 
+#[derive(Debug)]
 #[cfg_attr(feature = "serde-traits",
 	   derive(serde::Serialize),
 	   serde(rename_all="snake_case")
@@ -127,6 +137,6 @@ pub struct AccessTokenError {
 
 #[async_trait]
 pub trait AuthenticationCodeFlow {
-    async fn authorization_request(req: AuthorizationRequest) -> Result<AuthorizationResponse, AuthorizationError>;
-    async fn access_token_request<T>(req: TokenRequest) -> Result<AccessTokenResponse<T>, AccessTokenError>;
+    async fn authorization_request(&self, req: AuthorizationRequest) -> Result<AuthorizationResponse, AuthorizationError>;
+    async fn access_token_request<T>(&self, req: TokenRequest) -> Result<AccessTokenResponse<T>, AccessTokenError>;
 }

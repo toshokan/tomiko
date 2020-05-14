@@ -1,7 +1,10 @@
 use tomiko_auth::{AuthorizationRequest, AuthenticationCodeFlow};
+use super::FormEncoded;
 
-use warp::Filter;
+use warp::{Filter, Reply};
 use std::sync::Arc;
+
+
 
 #[derive(Debug, Clone)]
 pub struct Server<T> {
@@ -21,8 +24,10 @@ fn with<T: Clone + Send>(t: T) -> impl Filter<Extract = (T,), Error = std::conve
 }
 
 impl<T: AuthenticationCodeFlow + Send + Sync + 'static> Server<T> {
-    async fn authenticate(driver: &T, req: AuthorizationRequest) -> Result<String, warp::Rejection> {
-	Ok(format!("{:#?}", req))
+    async fn authenticate(driver: &T, req: AuthorizationRequest) -> Result<impl Reply, warp::Rejection> {
+	let result = driver.authorization_request(req).await.unwrap(); // TODO
+	let encoded = FormEncoded::encode(result).unwrap(); // TODO
+	Ok(encoded)
     }
     
     pub async fn serve(self) -> Option<()> {
@@ -43,6 +48,7 @@ impl<T: AuthenticationCodeFlow + Send + Sync + 'static> Server<T> {
 	warp::serve(routes)
 	    .run(([127, 0, 0, 1], 8001))
 	    .await;
+	
 	Some(())
     }
 }
