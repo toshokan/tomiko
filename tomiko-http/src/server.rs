@@ -28,7 +28,6 @@ impl<T> Server<T> {
     }
 
     async fn handle_reject(err: Rejection) -> Result<impl Reply, Rejection> {
-	use AuthRejection::*;
 	if let Some(e) = err.find::<AuthRejection>() {
 	    let encoded = FormEncoded::encode(e.clone()).unwrap();
 	    let reply = warp::reply::with_status(encoded, warp::http::StatusCode::BAD_REQUEST);
