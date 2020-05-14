@@ -7,7 +7,7 @@ pub trait FromRandom {
 impl FromRandom for AuthCode {
     fn from_random() -> Self {
 	AuthCode(
-	    random_string(32)
+	    random_string(64)
 	)
     }
 }
