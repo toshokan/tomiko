@@ -14,8 +14,8 @@ struct OAuthDriver {
 }
 
 impl OAuthDriver {
-    async fn validate_client(_client_id: &ClientId, _redirect_uri: &RedirectUri, state: &str) -> Result<(), AuthorizationError> {
-	if false {
+    async fn validate_client(&self, client_id: &ClientId, redirect_uri: &RedirectUri, state: &str) -> Result<(), AuthorizationError> {
+	if let Err(_) = self.store.check_client_uri(client_id, redirect_uri).await {
 	    let error = AuthorizationError {
 	    	kind: AuthorizationErrorKind::UnauthorizedClient,
 		description: None,
@@ -24,6 +24,7 @@ impl OAuthDriver {
 	    };
 	    return Err(error);
 	}
+
 	Ok(())
     }
 }
@@ -31,7 +32,7 @@ impl OAuthDriver {
 #[async_trait]
 impl AuthenticationCodeFlow for OAuthDriver {
     async fn authorization_request(&self, req: AuthorizationRequest) -> Result<AuthorizationResponse, AuthorizationError> {
-	Self::validate_client(&req.client_id, &req.redirect_uri, &req.state).await?;
+	self.validate_client(&req.client_id, &req.redirect_uri, &req.state).await?;
 	
 	let code = AuthCode::from_random();
 	let response = AuthorizationResponse::new(code, req.state);
