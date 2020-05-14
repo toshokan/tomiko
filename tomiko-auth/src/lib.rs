@@ -99,8 +99,11 @@ pub struct AuthorizationError {
 	   serde(rename="error_description"))]
     description: Option<String>,
     #[cfg_attr(feature = "serde-traits",
-	   serde(rename="error_uri"))]
+	       serde(rename="error_uri"),
+	       serde(skip_serializing_if="Option::is_none"))]
     uri: Option<String>,
+    #[cfg_attr(feature = "serde-traits",
+	   serde(skip_serializing_if="Option::is_none"))]
     state: Option<String>
 }
 
@@ -131,7 +134,8 @@ pub struct AccessTokenError {
 	       serde(rename="error_description"))]
     description: Option<String>,
     #[cfg_attr(feature = "serde-traits",
-	       serde(rename="error_uri"))]
+	       serde(rename="error_uri"),
+	       serde(skip_serializing_if="Option::is_none"))]
     uri: Option<String>
 }
 
