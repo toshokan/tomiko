@@ -1,5 +1,5 @@
 #[cfg(feature = "serde-traits")]
-use serde::{Deserialize, Deserializer};
+use serde::{Serialize, Deserialize, Serializer, Deserializer};
 
 #[derive(Debug)]
 #[cfg_attr(feature = "serde-traits",
@@ -22,6 +22,18 @@ impl<'de> Deserialize<'de> for Scope {
 	    .map(ToString::to_string)
 	    .collect();
 	Ok(Self(parts))
+    }
+}
+
+#[cfg(feature = "serde-traits")]
+impl Serialize for Scope
+{
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+	S: Serializer
+    {
+	let joined = self.0.join(" ");
+	serializer.serialize_str(&joined)
     }
 }
 
