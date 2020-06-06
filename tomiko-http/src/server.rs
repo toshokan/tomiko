@@ -44,6 +44,20 @@ fn with<T: Clone + Send>(t: T) -> impl Filter<Extract = (T,), Error = std::conve
     warp::any().map(move || t.clone())
 }
 
+struct ClientPassword {
+    client_id: String,
+    client_secret: String
+}
+
+fn basic_auth() -> impl Filter<Extract = (Option<ClientPassword>,), Error = Rejection> {
+    warp::any().and(
+	warp::header("Authorization")
+    	    .map(|tok: String| -> Option<ClientPassword> {
+		None
+	    })
+    )
+}
+
 impl<T: AuthenticationCodeFlow + Send + Sync + 'static> Server<T> {
     async fn authenticate(driver: &T, req: AuthorizationRequest) -> Result<impl Reply, Rejection> {
 	let result = driver.authorization_request(req).await;
