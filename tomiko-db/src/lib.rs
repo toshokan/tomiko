@@ -13,7 +13,7 @@ use sqlx::sqlite::SqlitePool;
 #[async_trait::async_trait]
 pub trait Store {
     async fn check_client_uri(&self, client_id: &ClientId, uri: &RedirectUri) -> Result<(), ()>;
-    async fn store_code(&self, client_id: &ClientId, code: AuthCode, state: String) -> Result<AuthCode, ()>;
+    async fn store_code(&self, client_id: &ClientId, code: AuthCode, state: &str) -> Result<AuthCode, ()>;
 }
 
 #[derive(Debug)]
@@ -52,7 +52,7 @@ impl Store for DbStore {
 	}
 	Err(())
     }
-    async fn store_code(&self, client_id: &ClientId, code: AuthCode, state: String) -> Result<AuthCode, ()> {
+    async fn store_code(&self, client_id: &ClientId, code: AuthCode, state: &str) -> Result<AuthCode, ()> {
 	let mut conn = self.pool.acquire().await.unwrap();
 	
 	sqlx::query("INSERT INTO codes(client_id, code, state) VALUES(?, ?, ?)")
