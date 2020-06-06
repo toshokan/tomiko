@@ -35,6 +35,7 @@ impl AuthenticationCodeFlow for OAuthDriver {
 	self.validate_client(&req.client_id, &req.redirect_uri, &req.state).await?;
 	
 	let code = AuthCode::from_random();
+	let code = self.store.store_code(&req.client_id, code, &req.state).await.unwrap(); // TODO
 	let response = AuthorizationResponse::new(code, req.state);
 	Ok(response)
     }
