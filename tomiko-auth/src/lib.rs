@@ -107,15 +107,22 @@ pub struct AuthorizationError {
     pub state: Option<String>
 }
 
-impl AuthorizationError {
-    pub fn server_error(state: String) -> Self {
-	Self {
-	    kind: AuthorizationErrorKind::ServerError,
-	    description: None,
-	    uri: None,
-	    state: Some(state)
+macro_rules! make_helper {
+    ($name: ident, $variant: path) => {
+	pub fn $name(state: &str) -> Self {
+	    Self {
+		kind: $variant,
+		description: None,
+		uri: None,
+		state: Some(state.to_string())
+	    }
 	}
-    }
+    };
+}
+
+impl AuthorizationError {
+    make_helper!(server_error, AuthorizationErrorKind::ServerError);
+    make_helper!(unauthorized_client, AuthorizationErrorKind::UnauthorizedClient);
 }
 
 #[derive(Debug, Clone)]
