@@ -107,6 +107,17 @@ pub struct AuthorizationError {
     pub state: Option<String>
 }
 
+impl AuthorizationError {
+    pub fn server_error(state: String) -> Self {
+	Self {
+	    kind: AuthorizationErrorKind::ServerError,
+	    description: None,
+	    uri: None,
+	    state: Some(state)
+	}
+    }
+}
+
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "serde-traits",
 	   derive(serde::Serialize),
