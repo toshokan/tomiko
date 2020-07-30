@@ -10,4 +10,4 @@ edition = "2018"
 tomiko-core = { path = "../tomiko-core", default-features = false, features = ["sqlx-traits"] }
 tomiko-util = { path = "../tomiko-util" }
 async-trait = "^0.1"
-sqlx = { version = "0.3", default-features = false, features = ["runtime-tokio", "sqlite", "macros"] }
+sqlx = { version = "0.4.0-beta.1", default-features = false, features = ["runtime-tokio", "sqlite", "macros"] }
