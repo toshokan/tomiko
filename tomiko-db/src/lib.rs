@@ -38,14 +38,12 @@ impl DbStore {
 #[async_trait::async_trait]
 impl Store for DbStore {
     async fn check_client_uri(&self, client_id: &ClientId, uri: &RedirectUri) -> Result<(), ()> {
-	use sqlx::sqlite::SqliteQueryAs;
-	
-	let mut conn = self.pool.acquire().await.unwrap();
-	let result = sqlx::query_as::<_, RedirectRecord>("SELECT * FROM uris WHERE client_id = ? AND uri = ?")
-            .bind(&client_id)
-            .bind(&uri)
-	    .fetch_optional(&mut conn).await
+	let result: Option<RedirectRecord> = sqlx::query_as!(RedirectRecord, r#"SELECT client_id as "client_id!: _", uri as "uri!: _" FROM uris WHERE client_id = ? AND uri = ?"#,
+				     client_id,
+				     uri)
+	    .fetch_optional(&self.pool).await
 	    .map_err(|_| ())?;
+	    // .map(Into::into);
 
 	if result.is_some() {
 	    return Ok(())
@@ -55,10 +53,10 @@ impl Store for DbStore {
     async fn store_code(&self, client_id: &ClientId, code: AuthCode, state: &str) -> Result<AuthCode, ()> {
 	let mut conn = self.pool.acquire().await.unwrap();
 	
-	sqlx::query("INSERT INTO codes(client_id, code, state) VALUES(?, ?, ?)")
-	    .bind(&client_id)
-	    .bind(&code)
-	    .bind(&state)
+	sqlx::query!("INSERT INTO codes(client_id, code, state) VALUES(?, ?, ?)",
+		     client_id,
+		     code,
+		     state)
 	    .execute(&mut conn).await
 	    .map_err(|_| ())?;
 	Ok(code)
