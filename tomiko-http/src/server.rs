@@ -1,4 +1,5 @@
 use tomiko_auth::{AuthorizationRequest, AuthorizationError, AccessTokenError, AuthenticationCodeFlow};
+use tomiko_auth::TokenRequest;
 use super::FormEncoded;
 
 use warp::{Filter, Reply, Rejection};
@@ -40,7 +41,7 @@ impl<T> Server<T> {
     }
 }
 
-fn with<T: Clone + Send>(t: T) -> impl Filter<Extract = (T,), Error = std::convert::Infallible> + Clone{
+fn with<T: Clone + Send>(t: T) -> impl Filter<Extract = (T,), Error = std::convert::Infallible> + Clone {
     warp::any().map(move || t.clone())
 }
 
@@ -49,13 +50,16 @@ struct ClientPassword {
     client_secret: String
 }
 
-fn basic_auth() -> impl Filter<Extract = (Option<ClientPassword>,), Error = Rejection> {
-    warp::any().and(
+fn basic_auth() -> impl Filter<Extract = (Option<ClientPassword>,), Error = std::convert::Infallible> + Clone {
+    let with_header =
 	warp::header("Authorization")
-    	    .map(|tok: String| -> Option<ClientPassword> {
-		None
-	    })
-    )
+    	.map(|tok: String| -> Option<ClientPassword> {
+	    eprintln!("{:?}", tok);
+	    None
+	});
+    let header_missing = warp::any().map(|| None);
+    
+    warp::any().and(with_header.or(header_missing)).unify()
 }
 
 impl<T: AuthenticationCodeFlow + Send + Sync + 'static> Server<T> {
@@ -67,6 +71,17 @@ impl<T: AuthenticationCodeFlow + Send + Sync + 'static> Server<T> {
 		Ok(encoded)
 	    },
 	    Err(e) => Err(warp::reject::custom(AuthRejection::Authorization(e)))
+	}
+    }
+
+    async fn token_request(driver: &T, pw: Option<ClientPassword>, req: TokenRequest) -> Result<impl Reply, Rejection> {
+	let result = driver.access_token_request::<String>(req).await;
+	match result {
+	    Ok(result) => {
+		let encoded = FormEncoded::encode(result).unwrap(); // TODO
+		Ok(encoded)
+	    },
+	    Err(e) => Err(warp::reject::custom(AuthRejection::AccessToken(e)))
 	}
     }
     
@@ -81,9 +96,17 @@ impl<T: AuthenticationCodeFlow + Send + Sync + 'static> Server<T> {
 	    	Self::authenticate(&driver, req).await
 	    });
 
+	let token = warp::path("token")
+	    .and(with(driver.clone()))
+	    .and(basic_auth())
+	    .and(warp::filters::query::query())
+	    .and_then(|driver: Arc<T>, pass: Option<ClientPassword>, req: TokenRequest| async move {
+		Self::token_request(&driver, pass, req).await
+	    });
+
 	let routes = oauth
 	    .and(warp::path("v1"))
-	    .and(auth)
+	    .and(auth.or(token))
 	    .recover(Self::handle_reject);
 	
 	warp::serve(routes)
