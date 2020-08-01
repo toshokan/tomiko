@@ -1,6 +1,8 @@
+use tomiko_core::types::{ClientId, ClientSecret};
 use tomiko_auth::{AuthorizationRequest, AuthorizationError, AccessTokenError, AuthenticationCodeFlow};
-use tomiko_auth::{TokenRequest, ClientPassword};
+use tomiko_auth::{TokenRequest, ClientCredentials, HashedClientCredentials, Hasher};
 use super::FormEncoded;
+use futures::future;
 
 use warp::{Filter, Reply, Rejection};
 use std::sync::Arc;
@@ -43,19 +45,26 @@ impl<T> Server<T> {
     }
 }
 
-
-
-fn client_auth() -> impl Filter<Extract = (ClientPassword,), Error = warp::reject::Rejection> + Clone {
+fn client_auth() -> impl Filter<Extract = (HashedClientCredentials,), Error = warp::reject::Rejection> + Clone {
     let basic = warp::header::<BasicCredentials>("Authorization")
         .map(|contents: BasicCredentials| {
-	    ClientPassword {
-		client_id: contents.user_id,
-		client_secret: contents.password
+	    ClientCredentials {
+		client_id: ClientId(contents.user_id),
+		client_secret: ClientSecret(contents.password)
 	    }
 	});
-    let from_body = warp::query::query::<ClientPassword>();
+    let from_body = warp::query::query::<ClientCredentials>();
 
     basic.or(from_body).unify()
+        .and_then(|credentials| {
+	    let secret = std::env::var("HASH_SECRET")
+		.expect("Failed to get HASH_SECRET");
+	    let hasher = Hasher::with_secret(secret);
+	    	    
+	    future::ready(
+		hasher.hash(credentials)
+    		.map_err(|_| warp::reject()))
+	})
 }
 
 impl<T: AuthenticationCodeFlow + Send + Sync + 'static> Server<T> {
@@ -70,7 +79,7 @@ impl<T: AuthenticationCodeFlow + Send + Sync + 'static> Server<T> {
 	}
     }
 
-    async fn token_request(driver: &T, pw: ClientPassword, req: TokenRequest) -> Result<impl Reply, Rejection> {
+    async fn token_request(driver: &T, pw: HashedClientCredentials, req: TokenRequest) -> Result<impl Reply, Rejection> {
 	let result = driver.access_token_request::<String>(req, pw).await;
 	match result {
 	    Ok(result) => {
@@ -98,7 +107,7 @@ impl<T: AuthenticationCodeFlow + Send + Sync + 'static> Server<T> {
 	    .and(with_driver.clone())
 	    .and(client_auth())
 	    .and(warp::filters::query::query())
-	    .and_then(|driver: Arc<T>, pass: ClientPassword, req: TokenRequest| async move {
+	    .and_then(|driver: Arc<T>, pass: HashedClientCredentials, req: TokenRequest| async move {
 		Self::token_request(&driver, pass, req).await
 	    });
 

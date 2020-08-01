@@ -1,7 +1,7 @@
 use tomiko_core::types::{AuthCode, ClientId, RedirectUri};
 use tomiko_auth::{AuthenticationCodeFlow,
 		  AuthorizationRequest, AuthorizationResponse, AuthorizationError, AuthorizationErrorKind,
-		  TokenRequest, ClientPassword, AccessTokenResponse, AccessTokenError};
+		  TokenRequest, HashedClientCredentials, ClientCredentials, AccessTokenResponse, AccessTokenError};
 use tomiko_util::random::FromRandom;
 
 use tomiko_http::server::Server;
@@ -36,7 +36,7 @@ impl AuthenticationCodeFlow for OAuthDriver {
 	Ok(response)
     }
 
-    async fn access_token_request<T>(&self, _req: TokenRequest, _pw: ClientPassword) -> Result<AccessTokenResponse<T>, AccessTokenError> {
+    async fn access_token_request<T>(&self, _req: TokenRequest, _pw: HashedClientCredentials) -> Result<AccessTokenResponse<T>, AccessTokenError> {
 	dbg!(_req, _pw);
 	panic!("access_token_req")
     }

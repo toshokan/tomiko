@@ -159,13 +159,50 @@ pub struct AccessTokenError {
 #[cfg_attr(feature = "serde-traits",
 	   derive(serde::Deserialize)
 )]
-pub struct ClientPassword {
-    pub client_id: String,
-    pub client_secret: String
+pub struct ClientCredentials {
+    pub client_id: ClientId,
+    pub client_secret: ClientSecret
 }
 
 #[async_trait]
 pub trait AuthenticationCodeFlow {
     async fn authorization_request(&self, req: AuthorizationRequest) -> Result<AuthorizationResponse, AuthorizationError>;
-    async fn access_token_request<T>(&self, req: TokenRequest, pw: ClientPassword) -> Result<AccessTokenResponse<T>, AccessTokenError>;
+    async fn access_token_request<T>(&self, req: TokenRequest, pw: HashedClientCredentials) -> Result<AccessTokenResponse<T>, AccessTokenError>;
+}
+
+#[derive(Debug)]
+pub struct HashedClientSecret(String);
+
+#[derive(Debug)]
+pub struct HashedClientCredentials {
+    pub client_id: ClientId,
+    pub client_secret: HashedClientSecret
+}
+
+pub struct Hasher {
+    secret: String
+}
+
+impl Hasher {
+    pub fn with_secret(secret: String) -> Self {
+	Self {
+	    secret
+	}
+    }
+    
+    pub fn hash(&self, credentials: ClientCredentials) -> Result<HashedClientCredentials, ()> {
+	let mut hasher = argonautica::Hasher::default();
+	let hash = hasher
+	    .with_password(credentials.client_secret.0)
+	    .with_secret_key(&self.secret)
+	    .hash()
+	    .expect("Failed to hash"); // TODO
+	
+	Ok(
+	    HashedClientCredentials {
+		client_id: credentials.client_id,
+		client_secret: HashedClientSecret(hash)
+	    }
+	)
+    }
 }

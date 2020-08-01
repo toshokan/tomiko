@@ -4,6 +4,8 @@ use tomiko_core::types::{
     RedirectUri
 };
 
+use tomiko_auth::ClientCredentials;
+
 mod types;
 
 use types::{raw, RedirectRecord};
@@ -14,6 +16,7 @@ use sqlx::sqlite::SqlitePool;
 pub trait Store {
     async fn check_client_uri(&self, client_id: &ClientId, uri: &RedirectUri) -> Result<(), ()>;
     async fn store_code(&self, client_id: &ClientId, code: AuthCode, state: &str) -> Result<AuthCode, ()>;
+    async fn check_client_credentials(&self, credentials: ClientCredentials) -> Result<ClientId, ()>;
 }
 
 #[derive(Debug)]
@@ -60,6 +63,14 @@ impl Store for DbStore {
 	    .execute(&mut conn).await
 	    .map_err(|_| ())?;
 	Ok(code)
+    }
+
+    async fn check_client_credentials(&self, credentials: ClientCredentials) -> Result<ClientId, ()> {
+	let result = sqlx::query!("SELECT client_id FROM clients")
+	    .fetch_optional(&self.pool).await
+	    .map_err(|_| ())?;
+
+	result.map(|r| ClientId(r.client_id)).ok_or(())
     }
 }
 
