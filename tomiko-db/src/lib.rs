@@ -6,7 +6,7 @@ use tomiko_core::types::{
 
 mod types;
 
-use types::RedirectRecord;
+use types::{raw, RedirectRecord};
 
 use sqlx::sqlite::SqlitePool;
 
@@ -38,12 +38,12 @@ impl DbStore {
 #[async_trait::async_trait]
 impl Store for DbStore {
     async fn check_client_uri(&self, client_id: &ClientId, uri: &RedirectUri) -> Result<(), ()> {
-	let result: Option<RedirectRecord> = sqlx::query_as!(RedirectRecord, r#"SELECT client_id as "client_id!: _", uri as "uri!: _" FROM uris WHERE client_id = ? AND uri = ?"#,
+	let result: Option<RedirectRecord> = sqlx::query_as!(raw::RedirectRecord, r#"SELECT * FROM uris WHERE client_id = ? AND uri = ?"#,
 				     client_id,
-				     uri)
+							     uri)
 	    .fetch_optional(&self.pool).await
-	    .map_err(|_| ())?;
-	    // .map(Into::into);
+	    .map_err(|_| ())?
+	    .map(Into::into);
 
 	if result.is_some() {
 	    return Ok(())
