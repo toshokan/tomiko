@@ -1,7 +1,7 @@
 use tomiko_core::types::{AuthCode, ClientId, RedirectUri};
 use tomiko_auth::{AuthenticationCodeFlow,
 		  AuthorizationRequest, AuthorizationResponse, AuthorizationError, AuthorizationErrorKind,
-		  TokenRequest, AccessTokenResponse, AccessTokenError};
+		  TokenRequest, ClientPassword, AccessTokenResponse, AccessTokenError};
 use tomiko_util::random::FromRandom;
 
 use tomiko_http::server::Server;

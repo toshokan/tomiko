@@ -1,5 +1,5 @@
 use tomiko_auth::{AuthorizationRequest, AuthorizationError, AccessTokenError, AuthenticationCodeFlow};
-use tomiko_auth::TokenRequest;
+use tomiko_auth::{TokenRequest, ClientPassword};
 use super::FormEncoded;
 
 use warp::{Filter, Reply, Rejection};
@@ -43,11 +43,7 @@ impl<T> Server<T> {
     }
 }
 
-#[derive(serde::Deserialize)]
-struct ClientPassword {
-    client_id: String,
-    client_secret: String
-}
+
 
 fn client_auth() -> impl Filter<Extract = (ClientPassword,), Error = warp::reject::Rejection> + Clone {
     let basic = warp::header::<BasicCredentials>("Authorization")

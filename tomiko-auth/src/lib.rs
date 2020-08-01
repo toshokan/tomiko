@@ -155,6 +155,15 @@ pub struct AccessTokenError {
     uri: Option<String>
 }
 
+#[derive(Debug)]
+#[cfg_attr(feature = "serde-traits",
+	   derive(serde::Deserialize)
+)]
+pub struct ClientPassword {
+    pub client_id: String,
+    pub client_secret: String
+}
+
 #[async_trait]
 pub trait AuthenticationCodeFlow {
     async fn authorization_request(&self, req: AuthorizationRequest) -> Result<AuthorizationResponse, AuthorizationError>;
