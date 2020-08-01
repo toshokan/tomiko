@@ -5,6 +5,8 @@ use super::FormEncoded;
 use warp::{Filter, Reply, Rejection};
 use std::sync::Arc;
 
+use http_basic_auth::Credential as BasicCredentials;
+
 #[derive(Debug, Clone)]
 #[derive(serde::Serialize)]
 #[serde(untagged)]
@@ -41,21 +43,23 @@ impl<T> Server<T> {
     }
 }
 
+#[derive(serde::Deserialize)]
 struct ClientPassword {
     client_id: String,
     client_secret: String
 }
 
-fn basic_auth() -> impl Filter<Extract = (Option<ClientPassword>,), Error = std::convert::Infallible> + Clone {
-    let with_header =
-	warp::header("Authorization")
-    	.map(|tok: String| -> Option<ClientPassword> {
-	    eprintln!("{:?}", tok);
-	    None
+fn client_auth() -> impl Filter<Extract = (ClientPassword,), Error = warp::reject::Rejection> + Clone {
+    let basic = warp::header::<BasicCredentials>("Authorization")
+        .map(|contents: BasicCredentials| {
+	    ClientPassword {
+		client_id: contents.user_id,
+		client_secret: contents.password
+	    }
 	});
-    let header_missing = warp::any().map(|| None);
-    
-    warp::any().and(with_header.or(header_missing)).unify()
+    let from_body = warp::body::json::<ClientPassword>();
+
+    basic.or(from_body).unify()
 }
 
 impl<T: AuthenticationCodeFlow + Send + Sync + 'static> Server<T> {
