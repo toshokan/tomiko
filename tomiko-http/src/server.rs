@@ -71,7 +71,7 @@ impl<T: AuthenticationCodeFlow + Send + Sync + 'static> Server<T> {
     }
 
     async fn token_request(driver: &T, pw: ClientPassword, req: TokenRequest) -> Result<impl Reply, Rejection> {
-	let result = driver.access_token_request::<String>(req).await;
+	let result = driver.access_token_request::<String>(req, pw).await;
 	match result {
 	    Ok(result) => {
 		let encoded = FormEncoded::encode(result).unwrap(); // TODO

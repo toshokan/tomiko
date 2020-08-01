@@ -167,5 +167,5 @@ pub struct ClientPassword {
 #[async_trait]
 pub trait AuthenticationCodeFlow {
     async fn authorization_request(&self, req: AuthorizationRequest) -> Result<AuthorizationResponse, AuthorizationError>;
-    async fn access_token_request<T>(&self, req: TokenRequest) -> Result<AccessTokenResponse<T>, AccessTokenError>;
+    async fn access_token_request<T>(&self, req: TokenRequest, pw: ClientPassword) -> Result<AccessTokenResponse<T>, AccessTokenError>;
 }
