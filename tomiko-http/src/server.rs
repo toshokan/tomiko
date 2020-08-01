@@ -70,7 +70,7 @@ impl<T: AuthenticationCodeFlow + Send + Sync + 'static> Server<T> {
 	}
     }
 
-    async fn token_request(driver: &T, pw: Option<ClientPassword>, req: TokenRequest) -> Result<impl Reply, Rejection> {
+    async fn token_request(driver: &T, pw: ClientPassword, req: TokenRequest) -> Result<impl Reply, Rejection> {
 	let result = driver.access_token_request::<String>(req).await;
 	match result {
 	    Ok(result) => {
@@ -96,9 +96,9 @@ impl<T: AuthenticationCodeFlow + Send + Sync + 'static> Server<T> {
 
 	let token = warp::path("token")
 	    .and(with_driver.clone())
-	    .and(basic_auth())
+	    .and(client_auth())
 	    .and(warp::filters::query::query())
-	    .and_then(|driver: Arc<T>, pass: Option<ClientPassword>, req: TokenRequest| async move {
+	    .and_then(|driver: Arc<T>, pass: ClientPassword, req: TokenRequest| async move {
 		Self::token_request(&driver, pass, req).await
 	    });
 
