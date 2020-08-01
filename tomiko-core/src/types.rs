@@ -55,7 +55,7 @@ pub enum ResponseType {
 	   derive(sqlx::Type),
 	   sqlx(transparent)
 )]
-pub struct ClientId(String);
+pub struct ClientId(pub String); // TODO
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 #[cfg_attr(feature = "serde-traits",
@@ -77,7 +77,7 @@ pub struct RedirectUri(pub String); // TODO
 	   derive(sqlx::Type),
 	   sqlx(transparent)
 )]
-pub struct ClientSecret(String);
+pub struct ClientSecret(pub String); // TODO
 
 #[derive(Debug)]
 #[cfg_attr(feature = "serde-traits",
