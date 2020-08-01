@@ -8,6 +8,7 @@ edition = "2018"
 
 [dependencies]
 tomiko-core = { path = "../tomiko-core", default-features = false, features = ["sqlx-traits"] }
+tomiko-auth = { path = "../tomiko-auth" }
 tomiko-util = { path = "../tomiko-util" }
 async-trait = "^0.1"
 sqlx = { version = "0.4.0-beta.1", default-features = false, features = ["runtime-tokio", "sqlite", "macros"] }
