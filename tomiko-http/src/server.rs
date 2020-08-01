@@ -53,7 +53,7 @@ fn client_auth() -> impl Filter<Extract = (ClientPassword,), Error = warp::rejec
 		client_secret: contents.password
 	    }
 	});
-    let from_body = warp::body::json::<ClientPassword>();
+    let from_body = warp::query::query::<ClientPassword>();
 
     basic.or(from_body).unify()
 }
