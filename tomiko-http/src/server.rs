@@ -41,10 +41,6 @@ impl<T> Server<T> {
     }
 }
 
-fn with<T: Clone + Send>(t: T) -> impl Filter<Extract = (T,), Error = std::convert::Infallible> + Clone {
-    warp::any().map(move || t.clone())
-}
-
 struct ClientPassword {
     client_id: String,
     client_secret: String
@@ -87,17 +83,19 @@ impl<T: AuthenticationCodeFlow + Send + Sync + 'static> Server<T> {
     
     pub async fn serve(self) -> Option<()> {
 	let driver = Arc::new(self.driver);
+
+	let with_driver = warp::any().map(move || driver.clone());
 	
 	let oauth = warp::path("oauth");
 	let auth = warp::path("authenticate")
-	    .and(with(driver.clone()))
+	    .and(with_driver.clone())
 	    .and(warp::filters::query::query())
 	    .and_then(|driver: Arc<T>, req: AuthorizationRequest| async move {
 	    	Self::authenticate(&driver, req).await
 	    });
 
 	let token = warp::path("token")
-	    .and(with(driver.clone()))
+	    .and(with_driver.clone())
 	    .and(basic_auth())
 	    .and(warp::filters::query::query())
 	    .and_then(|driver: Arc<T>, pass: Option<ClientPassword>, req: TokenRequest| async move {
