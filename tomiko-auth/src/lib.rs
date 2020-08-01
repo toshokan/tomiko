@@ -28,8 +28,6 @@ pub struct AuthorizationRequest {
 )]
 pub struct TokenRequest {
     grant_type: GrantType,
-    client_id: ClientId,
-    client_secret: Option<ClientSecret>,
     redirect_uri: RedirectUri,
     code: AuthCode
 }
