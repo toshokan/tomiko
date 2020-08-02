@@ -1,10 +1,9 @@
+use tomiko_auth::HashedClientSecret;
 use tomiko_core::types::{AuthCode, ClientId, RedirectUri};
-
-use tomiko_auth::ClientCredentials;
 
 mod types;
 
-use types::{raw, RedirectRecord};
+use types::{Client, RedirectRecord};
 
 use sqlx::sqlite::SqlitePool;
 
@@ -17,10 +16,8 @@ pub trait Store {
         code: AuthCode,
         state: &str,
     ) -> Result<AuthCode, ()>;
-    async fn check_client_credentials(
-        &self,
-        credentials: ClientCredentials,
-    ) -> Result<ClientId, ()>;
+    async fn get_client(&self, client_id: &ClientId) -> Result<Client, ()>;
+    async fn put_client(&self, client_id: ClientId, secret: HashedClientSecret) -> Result<Client, ()>;
 }
 
 #[derive(Debug)]
@@ -44,8 +41,7 @@ impl DbStore {
 #[async_trait::async_trait]
 impl Store for DbStore {
     async fn check_client_uri(&self, client_id: &ClientId, uri: &RedirectUri) -> Result<(), ()> {
-        let result: Option<RedirectRecord> = sqlx::query_as!(
-            raw::RedirectRecord,
+        let result: Option<RedirectRecord> = sqlx::query!(
             r#"SELECT * FROM uris WHERE client_id = ? AND uri = ?"#,
             client_id,
             uri
@@ -53,7 +49,10 @@ impl Store for DbStore {
         .fetch_optional(&self.pool)
         .await
         .map_err(|_| ())?
-        .map(Into::into);
+        .map(|r| RedirectRecord {
+            client_id: ClientId(r.client_id),
+            uri: RedirectUri(r.uri),
+        });
 
         if result.is_some() {
             return Ok(());
@@ -80,16 +79,28 @@ impl Store for DbStore {
         Ok(code)
     }
 
-    async fn check_client_credentials(
-        &self,
-        credentials: ClientCredentials,
-    ) -> Result<ClientId, ()> {
-        let result = sqlx::query!("SELECT client_id FROM clients")
+    async fn get_client(&self, id: &ClientId) -> Result<Client, ()> {
+        sqlx::query!("SELECT * from clients WHERE client_id = ?", id)
             .fetch_optional(&self.pool)
+            .await
+            .map_err(|_| ())?
+            .map(|r| Client {
+                id: ClientId(r.client_id),
+                secret: HashedClientSecret::from_raw(r.secret_hash),
+            })
+            .ok_or(())
+    }
+
+    async fn put_client(&self, client_id: ClientId, secret: HashedClientSecret) -> Result<Client, ()> {
+        sqlx::query!("INSERT INTO clients(client_id, secret_hash) VALUES(?, ?)",
+		     client_id.0,
+		     secret.0
+	)
+            .execute(&self.pool)
             .await
             .map_err(|_| ())?;
 
-        result.map(|r| ClientId(r.client_id)).ok_or(())
+	self.get_client(&client_id).await
     }
 }
 

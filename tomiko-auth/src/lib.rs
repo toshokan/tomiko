@@ -153,19 +153,30 @@ pub struct ClientCredentials {
 
 #[async_trait]
 pub trait AuthenticationCodeFlow {
+    async fn check_client_auth(&self, credentials: ClientCredentials) -> Result<ClientId, ()>;
     async fn authorization_request(
         &self,
         req: AuthorizationRequest,
     ) -> Result<AuthorizationResponse, AuthorizationError>;
     async fn access_token_request<T>(
         &self,
+	client: ClientId,
         req: TokenRequest,
-        pw: HashedClientCredentials,
     ) -> Result<AccessTokenResponse<T>, AccessTokenError>;
+    async fn create_client(
+	&self,
+	credentials: ClientCredentials
+    ) -> Result<ClientId, ()>;
 }
 
 #[derive(Debug)]
-pub struct HashedClientSecret(String);
+pub struct HashedClientSecret(pub String);
+
+impl HashedClientSecret {
+    pub fn from_raw(raw: String) -> Self {
+        Self(raw)
+    }
+}
 
 #[derive(Debug)]
 pub struct HashedClientCredentials {
@@ -173,26 +184,39 @@ pub struct HashedClientCredentials {
     pub client_secret: HashedClientSecret,
 }
 
-pub struct Hasher {
-    secret: String,
+#[derive(Debug)]
+pub struct HashingService {
+    secret_key: String,
 }
 
-impl Hasher {
-    pub fn with_secret(secret: String) -> Self {
-        Self { secret }
+impl HashingService {
+    pub fn with_secret_key(secret_key: String) -> Self {
+        Self { secret_key }
     }
 
-    pub fn hash(&self, credentials: ClientCredentials) -> Result<HashedClientCredentials, ()> {
+    pub fn hash(&self, secret: &ClientSecret) -> Result<HashedClientSecret, ()> {
         let mut hasher = argonautica::Hasher::default();
         let hash = hasher
-            .with_password(credentials.client_secret.0)
-            .with_secret_key(&self.secret)
+            .with_password(&secret.0)
+            .with_secret_key(&self.secret_key)
             .hash()
             .expect("Failed to hash"); // TODO
 
-        Ok(HashedClientCredentials {
-            client_id: credentials.client_id,
-            client_secret: HashedClientSecret(hash),
-        })
+        Ok(HashedClientSecret(hash))
+    }
+
+    pub fn verify(
+        &self,
+        secret: &ClientSecret,
+        hashed: &HashedClientSecret,
+    ) -> Result<bool, ()> {
+        let mut verifier = argonautica::Verifier::default();
+        let result = verifier
+            .with_secret_key(&self.secret_key)
+            .with_password(&secret.0)
+            .with_hash(&hashed.0)
+            .verify()
+            .map_err(|_| ());
+        result
     }
 }

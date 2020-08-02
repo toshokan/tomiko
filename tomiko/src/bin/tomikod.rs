@@ -1,7 +1,7 @@
 use tomiko_auth::{
     AccessTokenError, AccessTokenResponse, AuthenticationCodeFlow, AuthorizationError,
-    AuthorizationErrorKind, AuthorizationRequest, AuthorizationResponse, ClientCredentials,
-    HashedClientCredentials, TokenRequest,
+    AuthorizationRequest, AuthorizationResponse, ClientCredentials, HashedClientCredentials,
+    HashingService, TokenRequest,
 };
 use tomiko_core::types::{AuthCode, ClientId, RedirectUri};
 use tomiko_util::random::FromRandom;
@@ -13,6 +13,7 @@ use tomiko_http::server::Server;
 #[derive(Debug)]
 struct OAuthDriver {
     store: DbStore,
+    hasher: HashingService,
 }
 
 impl OAuthDriver {
@@ -33,6 +34,21 @@ impl OAuthDriver {
 
 #[async_trait]
 impl AuthenticationCodeFlow for OAuthDriver {
+    async fn check_client_auth(&self, credentials: ClientCredentials) -> Result<ClientId, ()> {
+        let client = self.store.get_client(&credentials.client_id).await?;
+
+        let result = self
+            .hasher
+            .verify(&credentials.client_secret, &client.secret)
+            .map_err(|_| ())?;
+
+        if result {
+            Ok(client.id)
+        } else {
+            Err(())
+        }
+    }
+
     async fn authorization_request(
         &self,
         req: AuthorizationRequest,
@@ -52,27 +68,55 @@ impl AuthenticationCodeFlow for OAuthDriver {
 
     async fn access_token_request<T>(
         &self,
+	_client: ClientId,
         _req: TokenRequest,
-        _pw: HashedClientCredentials,
     ) -> Result<AccessTokenResponse<T>, AccessTokenError> {
-        dbg!(_req, _pw);
+        dbg!(_req, _client);
         panic!("access_token_req")
+    }
+
+    async fn create_client(
+	&self,
+	credentials: ClientCredentials
+    ) -> Result<ClientId, ()> {
+	dbg!(&credentials);
+	let hashed = self.hasher.hash(&credentials.client_secret)?;
+	dbg!(&hashed);
+	let client = self.store.put_client(credentials.client_id, hashed).await?;
+	dbg!(&client);
+	Ok(client.id)
     }
 }
 
-async fn tomikod() -> Option<()> {
-    let uri = std::env::var("DATABASE_URL").expect("Supply a DATABASE_URL");
+async fn tomikod(config: Config) -> Option<()> {
+    let store = DbStore::acquire(&config.database_url).await.ok()?;
+    let hasher = HashingService::with_secret_key(config.hash_secret);
 
-    let store = DbStore::acquire(&uri).await.ok()?;
-    let driver = OAuthDriver { store };
+    let driver = OAuthDriver { store, hasher };
+
     let server = Server::new(driver);
     server.serve().await;
     Some(())
 }
 
+#[derive(Debug)]
+pub struct Config {
+    database_url: String,
+    hash_secret: String,
+}
+
+impl Config {
+    pub fn from_env() -> Self {
+        Self {
+            database_url: std::env::var("DATABASE_URL").expect("Supply DATABASE_URL"),
+            hash_secret: std::env::var("HASH_SECRET").expect("Supply HASH_SECRET"),
+        }
+    }
+}
+
 #[tokio::main]
 async fn main() -> Result<(), ()> {
     dotenv::dotenv().ok();
-
-    tomikod().await.ok_or(())
+    let config = Config::from_env();
+    tomikod(config).await.ok_or(())
 }
