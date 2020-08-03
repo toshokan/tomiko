@@ -1,5 +1,4 @@
 use super::FormEncoded;
-use futures::future;
 use tomiko_auth::{
     AccessTokenError, AuthenticationCodeFlow, AuthorizationError, AuthorizationRequest,
 };
