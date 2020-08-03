@@ -15,6 +15,7 @@ pub trait Store {
         client_id: &ClientId,
         code: AuthCode,
         state: &Option<String>,
+	uri: &RedirectUri
     ) -> Result<AuthCode, ()>;
     async fn get_client(&self, client_id: &ClientId) -> Result<Client, ()>;
     async fn put_client(&self, client_id: ClientId, secret: HashedClientSecret) -> Result<Client, ()>;
@@ -64,13 +65,15 @@ impl Store for DbStore {
         client_id: &ClientId,
         code: AuthCode,
         state: &Option<String>,
+	uri: &RedirectUri
     ) -> Result<AuthCode, ()> {
 
         sqlx::query!(
-            "INSERT INTO codes(client_id, code, state) VALUES(?, ?, ?)",
+            "INSERT INTO codes(client_id, code, state, uri) VALUES(?, ?, ?, ?)",
             client_id,
             code,
-            state
+            state,
+	    uri.0
         )
         .execute(&self.pool)
         .await

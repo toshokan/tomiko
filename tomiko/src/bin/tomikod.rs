@@ -59,7 +59,7 @@ impl AuthenticationCodeFlow for OAuthDriver {
         let code = AuthCode::from_random();
         let code = self
             .store
-            .store_code(&req.client_id, code, &req.state)
+            .store_code(&req.client_id, code, &req.state, &req.redirect_uri)
             .await
             .map_err(|_| AuthorizationError::server_error(&req.state))?;
         let response = AuthorizationResponse::new(code, req.state);
