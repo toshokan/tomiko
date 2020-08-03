@@ -11,7 +11,7 @@ pub struct AuthorizationRequest {
     pub client_id: ClientId,
     pub redirect_uri: RedirectUri,
     pub scope: Scope,
-    pub state: String,
+    pub state: Option<String>,
 }
 
 #[derive(Debug)]
