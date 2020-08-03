@@ -26,11 +26,15 @@ pub struct TokenRequest {
 #[cfg_attr(feature = "serde-traits", derive(serde::Serialize))]
 pub struct AuthorizationResponse {
     code: AuthCode,
-    state: String,
+    #[cfg_attr(
+        feature = "serde-traits",
+        serde(skip_serializing_if = "Option::is_none")
+    )]
+    state: Option<String>,
 }
 
 impl AuthorizationResponse {
-    pub fn new(code: AuthCode, state: String) -> Self {
+    pub fn new(code: AuthCode, state: Option<String>) -> Self {
         Self { code, state }
     }
 }
@@ -91,12 +95,12 @@ pub struct AuthorizationError {
 
 macro_rules! make_helper {
     ($name: ident, $variant: path) => {
-        pub fn $name(state: &str) -> Self {
+        pub fn $name(state: &Option<String>) -> Self {
             Self {
                 kind: $variant,
                 description: None,
                 uri: None,
-                state: Some(state.to_string()),
+                state: state.as_ref().map(ToString::to_string),
             }
         }
     };
@@ -160,13 +164,10 @@ pub trait AuthenticationCodeFlow {
     ) -> Result<AuthorizationResponse, AuthorizationError>;
     async fn access_token_request<T>(
         &self,
-	client: ClientId,
+        client: ClientId,
         req: TokenRequest,
     ) -> Result<AccessTokenResponse<T>, AccessTokenError>;
-    async fn create_client(
-	&self,
-	credentials: ClientCredentials
-    ) -> Result<ClientId, ()>;
+    async fn create_client(&self, credentials: ClientCredentials) -> Result<ClientId, ()>;
 }
 
 #[derive(Debug)]
@@ -205,11 +206,7 @@ impl HashingService {
         Ok(HashedClientSecret(hash))
     }
 
-    pub fn verify(
-        &self,
-        secret: &ClientSecret,
-        hashed: &HashedClientSecret,
-    ) -> Result<bool, ()> {
+    pub fn verify(&self, secret: &ClientSecret, hashed: &HashedClientSecret) -> Result<bool, ()> {
         let mut verifier = argonautica::Verifier::default();
         let result = verifier
             .with_secret_key(&self.secret_key)
