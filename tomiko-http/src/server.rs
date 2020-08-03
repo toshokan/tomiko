@@ -37,38 +37,6 @@ impl<T> BodyClientCredentials<T> {
     }
 }
 
-macro_rules! request_auth {
-    ($with_driver: ident, $ty: ident) => {{
-        let basic = warp::header::<BasicCredentials>("Authorization")
-            .and(warp::body::form::<$ty>())
-            .map(|contents: BasicCredentials, f: $ty| {
-                let credentials = ClientCredentials {
-                    client_id: ClientId(contents.user_id),
-                    client_secret: ClientSecret(contents.password),
-                };
-                BodyClientCredentials::join(credentials, f)
-            });
-        let from_body = warp::body::form::<BodyClientCredentials<$ty>>();
-
-        basic
-            .or(from_body)
-            .unify()
-            .and($with_driver.clone())
-            .and_then(
-                |bcc: BodyClientCredentials<$ty>, driver: Arc<T>| async move {
-                    let (credentials, body) = bcc.split();
-
-                    let result = driver
-                        .check_client_auth(credentials)
-                        .await
-                        .map(|id| (id, body))
-                        .map_err(|_| warp::reject());
-                    result
-                },
-            )
-    }};
-}
-
 #[derive(Debug, Clone)]
 pub struct Server<T> {
     driver: Arc<T>,
@@ -120,15 +88,46 @@ impl<T: AuthenticationCodeFlow + Send + Sync + 'static> Server<T> {
         }
     }
 
+    fn with_driver(&self) -> impl Filter<Extract = (Arc<T>,), Error = std::convert::Infallible> + Clone {
+	let driver = self.driver.clone();
+	warp::any().map(move || driver.clone())
+    }
+
+    fn request_auth<B: serde::de::DeserializeOwned + Send>(&self) -> impl Filter<Extract = ((ClientId, B),), Error = Rejection> + Clone {
+	let basic = warp::header::<BasicCredentials>("Authorization")
+            .and(warp::body::form::<B>())
+            .map(|contents: BasicCredentials, f: B| {
+                let credentials = ClientCredentials {
+                    client_id: ClientId(contents.user_id),
+                    client_secret: ClientSecret(contents.password),
+                };
+                BodyClientCredentials::join(credentials, f)
+            });
+        let from_body = warp::body::form::<BodyClientCredentials<B>>();
+
+        basic
+            .or(from_body)
+            .unify()
+            .and(self.with_driver())
+            .and_then(
+                |bcc: BodyClientCredentials<B>, driver: Arc<T>| async move {
+                    let (credentials, body) = bcc.split();
+
+                    let result = driver
+                        .check_client_auth(credentials)
+                        .await
+                        .map(|id| (id, body))
+                        .map_err(|_| warp::reject());
+                    result
+                },
+            )
+    }
+
     pub async fn serve(self) -> Option<()> {
-        let driver = self.driver.clone();
-
-        let with_driver = warp::any().map(move || driver.clone());
-
         let oauth = warp::path("oauth");
 
         let authenticate = warp::path("authenticate")
-            .and(with_driver.clone())
+            .and(self.with_driver())
             .and(warp::filters::query::query())
             .and_then(|driver: Arc<T>, req: AuthorizationRequest| async move {
                 Self::authenticate(&driver, req).await
@@ -136,14 +135,14 @@ impl<T: AuthenticationCodeFlow + Send + Sync + 'static> Server<T> {
 
         let token_request = warp::path("token")
             .and(warp::post())
-            .and(with_driver.clone())
-            .and(request_auth!(with_driver, TokenRequest))
+            .and(self.with_driver())
+            .and(self.request_auth())
             .and_then(|driver: Arc<T>, (client_id, req)| async move {
                 Self::token_request(&driver, client_id, req).await
             });
 
         let make_client = warp::path("client")
-            .and(with_driver.clone())
+            .and(self.with_driver())
             .and(warp::query::<ClientCredentials>())
             .and_then(|driver: Arc<T>, credentials| async move {
                 driver
