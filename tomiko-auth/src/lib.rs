@@ -17,9 +17,9 @@ pub struct AuthorizationRequest {
 #[derive(Debug)]
 #[cfg_attr(feature = "serde-traits", derive(serde::Deserialize))]
 pub struct TokenRequest {
-    grant_type: GrantType,
-    redirect_uri: RedirectUri,
-    code: AuthCode,
+    pub grant_type: GrantType,
+    pub redirect_uri: RedirectUri,
+    pub code: AuthCode,
 }
 
 #[derive(Debug)]
@@ -45,12 +45,12 @@ pub struct TokenType(String);
 
 #[cfg_attr(feature = "serde-traits", derive(serde::Serialize))]
 #[derive(Debug)]
-pub struct AccessTokenResponse<T> {
-    access_token: T,
-    token_type: String,
-    refresh_token: Option<T>,
-    expires_in: Option<u32>,
-    scope: Option<Scope>,
+pub struct AccessTokenResponse {
+    pub access_token: String,
+    pub token_type: String,
+    pub refresh_token: Option<String>,
+    pub expires_in: Option<u32>,
+    pub scope: Option<Scope>,
 }
 
 #[derive(Debug, Clone)]
@@ -137,15 +137,15 @@ pub enum AccessTokenErrorKind {
 )]
 pub struct AccessTokenError {
     #[cfg_attr(feature = "serde-traits", serde(rename = "error"))]
-    kind: AccessTokenErrorKind,
+    pub kind: AccessTokenErrorKind,
     #[cfg_attr(feature = "serde-traits", serde(rename = "error_description"))]
-    description: Option<String>,
+    pub description: Option<String>,
     #[cfg_attr(
         feature = "serde-traits",
         serde(rename = "error_uri"),
         serde(skip_serializing_if = "Option::is_none")
     )]
-    uri: Option<String>,
+    pub uri: Option<String>,
 }
 
 #[derive(Debug)]
@@ -162,11 +162,11 @@ pub trait AuthenticationCodeFlow {
         &self,
         req: AuthorizationRequest,
     ) -> Result<AuthorizationResponse, AuthorizationError>;
-    async fn access_token_request<T>(
+    async fn access_token_request(
         &self,
         client: ClientId,
         req: TokenRequest,
-    ) -> Result<AccessTokenResponse<T>, AccessTokenError>;
+    ) -> Result<AccessTokenResponse, AccessTokenError>;
     async fn create_client(&self, credentials: ClientCredentials) -> Result<ClientId, ()>;
 }
 
