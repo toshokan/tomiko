@@ -81,7 +81,7 @@ impl<T: AuthenticationCodeFlow + Send + Sync + 'static> Server<T> {
 			client_secret: ClientSecret(contents.password),
 		    }
 		});
-	    let from_body = warp::query::query::<ClientCredentials>();
+	    let from_body = warp::body::form::<ClientCredentials>();
 
 	    basic
 		.or(from_body)
@@ -106,9 +106,10 @@ impl<T: AuthenticationCodeFlow + Send + Sync + 'static> Server<T> {
             });
 
         let token_request = warp::path("token")
+            .and(warp::post())
 	    .and(with_driver.clone())
             .and(request_auth)
-            .and(warp::filters::query::query())
+            .and(warp::body::form())
             .and_then(
                 |driver: Arc<T>, client_id, req: TokenRequest| async move {
                     Self::token_request(&driver, client_id, req).await
