@@ -23,6 +23,11 @@ pub trait Store {
         client_id: ClientId,
         secret: HashedClientSecret,
     ) -> Result<Client, ()>;
+    async fn get_authcode_uri(
+        &self,
+        client_id: &ClientId,
+        code: &AuthCode,
+    ) -> Result<RedirectUri, ()>;
 }
 
 #[derive(Debug)]
@@ -111,6 +116,22 @@ impl Store for DbStore {
         .map_err(|_| ())?;
 
         self.get_client(&client_id).await
+    }
+
+    async fn get_authcode_uri(
+        &self,
+        client_id: &ClientId,
+        code: &AuthCode,
+    ) -> Result<RedirectUri, ()> {
+	let result = sqlx::query!("SELECT uri FROM codes WHERE client_id = ? AND code = ?",
+		     client_id.0,
+		     code.0
+	)
+	    .fetch_optional(&self.pool)
+	    .await
+	    .map_err(|_| ())?;
+	
+	result.map(|r| RedirectUri(r.uri)).ok_or(())
     }
 }
 
