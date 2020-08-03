@@ -21,7 +21,7 @@ impl OAuthDriver {
         &self,
         client_id: &ClientId,
         redirect_uri: &RedirectUri,
-        state: &str,
+        state: &Option<String>,
     ) -> Result<(), AuthorizationError> {
         self.store
             .check_client_uri(client_id, redirect_uri)

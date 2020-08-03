@@ -14,7 +14,7 @@ pub trait Store {
         &self,
         client_id: &ClientId,
         code: AuthCode,
-        state: &str,
+        state: &Option<String>,
     ) -> Result<AuthCode, ()>;
     async fn get_client(&self, client_id: &ClientId) -> Result<Client, ()>;
     async fn put_client(&self, client_id: ClientId, secret: HashedClientSecret) -> Result<Client, ()>;
@@ -63,7 +63,7 @@ impl Store for DbStore {
         &self,
         client_id: &ClientId,
         code: AuthCode,
-        state: &str,
+        state: &Option<String>,
     ) -> Result<AuthCode, ()> {
         let mut conn = self.pool.acquire().await.unwrap();
 
