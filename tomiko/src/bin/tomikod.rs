@@ -1,6 +1,7 @@
 use tomiko_auth::{
-    AccessTokenError, AccessTokenResponse, AuthenticationCodeFlow, AuthorizationError,
-    AuthorizationRequest, AuthorizationResponse, ClientCredentials, HashingService, TokenRequest,
+    AccessTokenError, AccessTokenErrorKind, AccessTokenResponse, AuthenticationCodeFlow,
+    AuthorizationError, AuthorizationRequest, AuthorizationResponse, ClientCredentials,
+    HashingService, TokenRequest,
 };
 use tomiko_core::types::{AuthCode, ClientId, RedirectUri};
 use tomiko_util::random::FromRandom;
@@ -65,13 +66,36 @@ impl AuthenticationCodeFlow for OAuthDriver {
         Ok(response)
     }
 
-    async fn access_token_request<T>(
+    async fn access_token_request(
         &self,
-        _client: ClientId,
-        _req: TokenRequest,
-    ) -> Result<AccessTokenResponse<T>, AccessTokenError> {
-        dbg!(_req, _client);
-        panic!("access_token_req")
+        client_id: ClientId,
+        req: TokenRequest,
+    ) -> Result<AccessTokenResponse, AccessTokenError> {
+        let uri = self
+            .store
+            .get_authcode_uri(&client_id, &req.code)
+            .await
+            .map_err(|_| AccessTokenError {
+                kind: AccessTokenErrorKind::InvalidGrant,
+                description: None,
+                uri: None,
+            })?;
+
+        if uri == req.redirect_uri {
+            Ok(AccessTokenResponse {
+                access_token: "TOKEN_SAMPLE".to_string(),
+                token_type: "SAMPLE".to_string(),
+                refresh_token: None,
+                expires_in: None,
+                scope: None,
+            })
+        } else {
+            Err(AccessTokenError {
+                kind: AccessTokenErrorKind::InvalidGrant,
+                description: None,
+                uri: None,
+            })
+        }
     }
 
     async fn create_client(&self, credentials: ClientCredentials) -> Result<ClientId, ()> {
