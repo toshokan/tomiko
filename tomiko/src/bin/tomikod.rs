@@ -1,7 +1,6 @@
 use tomiko_auth::{
     AccessTokenError, AccessTokenResponse, AuthenticationCodeFlow, AuthorizationError,
-    AuthorizationRequest, AuthorizationResponse, ClientCredentials, HashedClientCredentials,
-    HashingService, TokenRequest,
+    AuthorizationRequest, AuthorizationResponse, ClientCredentials, HashingService, TokenRequest,
 };
 use tomiko_core::types::{AuthCode, ClientId, RedirectUri};
 use tomiko_util::random::FromRandom;
