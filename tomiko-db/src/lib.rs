@@ -65,7 +65,6 @@ impl Store for DbStore {
         code: AuthCode,
         state: &Option<String>,
     ) -> Result<AuthCode, ()> {
-        let mut conn = self.pool.acquire().await.unwrap();
 
         sqlx::query!(
             "INSERT INTO codes(client_id, code, state) VALUES(?, ?, ?)",
@@ -73,7 +72,7 @@ impl Store for DbStore {
             code,
             state
         )
-        .execute(&mut conn)
+        .execute(&self.pool)
         .await
         .map_err(|_| ())?;
         Ok(code)
