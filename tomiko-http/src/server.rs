@@ -2,7 +2,7 @@ use super::FormEncoded;
 use tomiko_auth::{
     AccessTokenError, AuthenticationCodeFlow, AuthorizationError, AuthorizationRequest,
 };
-use tomiko_auth::{ClientCredentials, HashedClientCredentials, HashingService, TokenRequest};
+use tomiko_auth::{ClientCredentials, TokenRequest};
 use tomiko_core::types::{ClientId, ClientSecret};
 
 use std::sync::Arc;
