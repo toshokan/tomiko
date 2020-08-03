@@ -68,20 +68,17 @@ impl AuthenticationCodeFlow for OAuthDriver {
 
     async fn access_token_request<T>(
         &self,
-	_client: ClientId,
+        _client: ClientId,
         _req: TokenRequest,
     ) -> Result<AccessTokenResponse<T>, AccessTokenError> {
         dbg!(_req, _client);
         panic!("access_token_req")
     }
 
-    async fn create_client(
-	&self,
-	credentials: ClientCredentials
-    ) -> Result<ClientId, ()> {
-	let hashed = self.hasher.hash(&credentials.client_secret)?;
-	let client = self.store.put_client(credentials.client_id, hashed).await?;
-	Ok(client.id)
+    async fn create_client(&self, credentials: ClientCredentials) -> Result<ClientId, ()> {
+        let hashed = self.hasher.hash(&credentials.client_secret)?;
+        let client = self.store.put_client(credentials.client_id, hashed).await?;
+        Ok(client.id)
     }
 }
 

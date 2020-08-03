@@ -15,10 +15,14 @@ pub trait Store {
         client_id: &ClientId,
         code: AuthCode,
         state: &Option<String>,
-	uri: &RedirectUri
+        uri: &RedirectUri,
     ) -> Result<AuthCode, ()>;
     async fn get_client(&self, client_id: &ClientId) -> Result<Client, ()>;
-    async fn put_client(&self, client_id: ClientId, secret: HashedClientSecret) -> Result<Client, ()>;
+    async fn put_client(
+        &self,
+        client_id: ClientId,
+        secret: HashedClientSecret,
+    ) -> Result<Client, ()>;
 }
 
 #[derive(Debug)]
@@ -65,15 +69,14 @@ impl Store for DbStore {
         client_id: &ClientId,
         code: AuthCode,
         state: &Option<String>,
-	uri: &RedirectUri
+        uri: &RedirectUri,
     ) -> Result<AuthCode, ()> {
-
         sqlx::query!(
             "INSERT INTO codes(client_id, code, state, uri) VALUES(?, ?, ?, ?)",
             client_id,
             code,
             state,
-	    uri.0
+            uri.0
         )
         .execute(&self.pool)
         .await
@@ -93,16 +96,21 @@ impl Store for DbStore {
             .ok_or(())
     }
 
-    async fn put_client(&self, client_id: ClientId, secret: HashedClientSecret) -> Result<Client, ()> {
-        sqlx::query!("INSERT INTO clients(client_id, secret_hash) VALUES(?, ?)",
-		     client_id.0,
-		     secret.0
-	)
-            .execute(&self.pool)
-            .await
-            .map_err(|_| ())?;
+    async fn put_client(
+        &self,
+        client_id: ClientId,
+        secret: HashedClientSecret,
+    ) -> Result<Client, ()> {
+        sqlx::query!(
+            "INSERT INTO clients(client_id, secret_hash) VALUES(?, ?)",
+            client_id.0,
+            secret.0
+        )
+        .execute(&self.pool)
+        .await
+        .map_err(|_| ())?;
 
-	self.get_client(&client_id).await
+        self.get_client(&client_id).await
     }
 }
 

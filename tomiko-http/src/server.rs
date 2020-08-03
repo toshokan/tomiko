@@ -39,33 +39,34 @@ impl<T> BodyClientCredentials<T> {
 
 macro_rules! request_auth {
     ($with_driver: ident, $ty: ident) => {{
-	let basic =
-	    warp::header::<BasicCredentials>("Authorization")
-	    .and(warp::body::form::<$ty>())
-	    .map(|contents: BasicCredentials, f: $ty| {
-		let credentials = ClientCredentials {
-		    client_id: ClientId(contents.user_id),
-		    client_secret: ClientSecret(contents.password),
-		};
-		BodyClientCredentials::join(credentials, f)
-	    });
-	let from_body = warp::body::form::<BodyClientCredentials<$ty>>();
+        let basic = warp::header::<BasicCredentials>("Authorization")
+            .and(warp::body::form::<$ty>())
+            .map(|contents: BasicCredentials, f: $ty| {
+                let credentials = ClientCredentials {
+                    client_id: ClientId(contents.user_id),
+                    client_secret: ClientSecret(contents.password),
+                };
+                BodyClientCredentials::join(credentials, f)
+            });
+        let from_body = warp::body::form::<BodyClientCredentials<$ty>>();
 
-	basic
-	    .or(from_body)
-	    .unify()
-	    .and($with_driver.clone())
-	    .and_then(|bcc: BodyClientCredentials<$ty>, driver: Arc<T>| async move {
-		let (credentials, body) = bcc.split();
-		
-		let result = driver
-		    .check_client_auth(credentials)
-		    .await
-		    .map(|id| (id, body))
-		    .map_err(|_| warp::reject());
-		result
-	    })
-    }}
+        basic
+            .or(from_body)
+            .unify()
+            .and($with_driver.clone())
+            .and_then(
+                |bcc: BodyClientCredentials<$ty>, driver: Arc<T>| async move {
+                    let (credentials, body) = bcc.split();
+
+                    let result = driver
+                        .check_client_auth(credentials)
+                        .await
+                        .map(|id| (id, body))
+                        .map_err(|_| warp::reject());
+                    result
+                },
+            )
+    }};
 }
 
 #[derive(Debug, Clone)]
@@ -120,8 +121,8 @@ impl<T: AuthenticationCodeFlow + Send + Sync + 'static> Server<T> {
     }
 
     pub async fn serve(self) -> Option<()> {
-	let driver = self.driver.clone();
-	
+        let driver = self.driver.clone();
+
         let with_driver = warp::any().map(move || driver.clone());
 
         let oauth = warp::path("oauth");
@@ -136,7 +137,7 @@ impl<T: AuthenticationCodeFlow + Send + Sync + 'static> Server<T> {
         let token_request = warp::path("token")
             .and(warp::post())
             .and(with_driver.clone())
-	    .and(request_auth!(with_driver, TokenRequest))
+            .and(request_auth!(with_driver, TokenRequest))
             .and_then(|driver: Arc<T>, (client_id, req)| async move {
                 Self::token_request(&driver, client_id, req).await
             });

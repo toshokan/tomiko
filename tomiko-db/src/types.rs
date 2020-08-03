@@ -1,5 +1,5 @@
-use tomiko_core::types::{ClientId, RedirectUri};
 use tomiko_auth::HashedClientSecret;
+use tomiko_core::types::{ClientId, RedirectUri};
 
 #[derive(Debug)]
 pub struct Client {
