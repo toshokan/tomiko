@@ -20,14 +20,64 @@ enum AuthRejection {
 
 impl warp::reject::Reject for AuthRejection {}
 
-#[derive(Debug)]
+#[derive(serde::Deserialize)]
+pub struct BodyClientCredentials<T> {
+    #[serde(flatten)]
+    credentials: ClientCredentials,
+    #[serde(flatten)]
+    body: T,
+}
+
+impl<T> BodyClientCredentials<T> {
+    pub fn join(credentials: ClientCredentials, body: T) -> Self {
+        Self { credentials, body }
+    }
+    pub fn split(self) -> (ClientCredentials, T) {
+        (self.credentials, self.body)
+    }
+}
+
+macro_rules! request_auth {
+    ($with_driver: ident, $ty: ident) => {{
+	let basic =
+	    warp::header::<BasicCredentials>("Authorization")
+	    .and(warp::body::form::<$ty>())
+	    .map(|contents: BasicCredentials, f: $ty| {
+		let credentials = ClientCredentials {
+		    client_id: ClientId(contents.user_id),
+		    client_secret: ClientSecret(contents.password),
+		};
+		BodyClientCredentials::join(credentials, f)
+	    });
+	let from_body = warp::body::form::<BodyClientCredentials<$ty>>();
+
+	basic
+	    .or(from_body)
+	    .unify()
+	    .and($with_driver.clone())
+	    .and_then(|bcc: BodyClientCredentials<$ty>, driver: Arc<T>| async move {
+		let (credentials, body) = bcc.split();
+		
+		let result = driver
+		    .check_client_auth(credentials)
+		    .await
+		    .map(|id| (id, body))
+		    .map_err(|_| warp::reject());
+		result
+	    })
+    }}
+}
+
+#[derive(Debug, Clone)]
 pub struct Server<T> {
-    driver: T,
+    driver: Arc<T>,
 }
 
 impl<T> Server<T> {
     pub fn new(driver: T) -> Self {
-        Self { driver }
+        Self {
+            driver: Arc::new(driver),
+        }
     }
 
     async fn handle_reject(err: Rejection) -> Result<impl Reply, Rejection> {
@@ -70,34 +120,12 @@ impl<T: AuthenticationCodeFlow + Send + Sync + 'static> Server<T> {
     }
 
     pub async fn serve(self) -> Option<()> {
-        let driver = Arc::new(self.driver);
+	let driver = self.driver.clone();
+	
         let with_driver = warp::any().map(move || driver.clone());
 
-	let request_auth = {
-	    let basic =
-		warp::header::<BasicCredentials>("Authorization").map(|contents: BasicCredentials| {
-		    ClientCredentials {
-			client_id: ClientId(contents.user_id),
-			client_secret: ClientSecret(contents.password),
-		    }
-		});
-	    let from_body = warp::body::form::<ClientCredentials>();
-
-	    basic
-		.or(from_body)
-		.unify()
-    		.and(with_driver.clone())
-		.and_then(|credentials, driver: Arc<T>| async move {
-		    dbg!(&credentials);
-		    let result = driver.check_client_auth(credentials)
-			.await
-			.map_err(|_| warp::reject());
-		    result
-		})
-	};
-
         let oauth = warp::path("oauth");
-	
+
         let authenticate = warp::path("authenticate")
             .and(with_driver.clone())
             .and(warp::filters::query::query())
@@ -107,23 +135,22 @@ impl<T: AuthenticationCodeFlow + Send + Sync + 'static> Server<T> {
 
         let token_request = warp::path("token")
             .and(warp::post())
-	    .and(with_driver.clone())
-            .and(request_auth)
-            .and(warp::body::form())
-            .and_then(
-                |driver: Arc<T>, client_id, req: TokenRequest| async move {
-                    Self::token_request(&driver, client_id, req).await
-                },
-            );
+            .and(with_driver.clone())
+	    .and(request_auth!(with_driver, TokenRequest))
+            .and_then(|driver: Arc<T>, (client_id, req)| async move {
+                Self::token_request(&driver, client_id, req).await
+            });
 
-	let make_client = warp::path("client")
-	    .and(with_driver.clone())
-	    .and(warp::query::<ClientCredentials>())
-	    .and_then(|driver: Arc<T>, credentials| async move {
-		driver.create_client(credentials).await
-		    .map_err(|_| warp::reject())
-		    .map(|c| warp::reply::html(format!("{:?}", c)))
-	    });
+        let make_client = warp::path("client")
+            .and(with_driver.clone())
+            .and(warp::query::<ClientCredentials>())
+            .and_then(|driver: Arc<T>, credentials| async move {
+                driver
+                    .create_client(credentials)
+                    .await
+                    .map_err(|_| warp::reject())
+                    .map(|c| warp::reply::html(format!("{:?}", c)))
+            });
 
         let routes = oauth
             .and(warp::path("v1"))
