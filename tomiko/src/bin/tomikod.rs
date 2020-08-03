@@ -79,11 +79,8 @@ impl AuthenticationCodeFlow for OAuthDriver {
 	&self,
 	credentials: ClientCredentials
     ) -> Result<ClientId, ()> {
-	dbg!(&credentials);
 	let hashed = self.hasher.hash(&credentials.client_secret)?;
-	dbg!(&hashed);
 	let client = self.store.put_client(credentials.client_id, hashed).await?;
-	dbg!(&client);
 	Ok(client.id)
     }
 }
