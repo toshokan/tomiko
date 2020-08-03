@@ -87,13 +87,17 @@ impl<T: AuthenticationCodeFlow + Send + Sync + 'static> Server<T> {
         }
     }
 
-    fn with_driver(&self) -> impl Filter<Extract = (Arc<T>,), Error = std::convert::Infallible> + Clone {
-	let driver = self.driver.clone();
-	warp::any().map(move || driver.clone())
+    fn with_driver(
+        &self,
+    ) -> impl Filter<Extract = (Arc<T>,), Error = std::convert::Infallible> + Clone {
+        let driver = self.driver.clone();
+        warp::any().map(move || driver.clone())
     }
 
-    fn request_auth<B: serde::de::DeserializeOwned + Send>(&self) -> impl Filter<Extract = ((ClientId, B),), Error = Rejection> + Clone {
-	let basic = warp::header::<BasicCredentials>("Authorization")
+    fn request_auth<B: serde::de::DeserializeOwned + Send>(
+        &self,
+    ) -> impl Filter<Extract = ((ClientId, B),), Error = Rejection> + Clone {
+        let basic = warp::header::<BasicCredentials>("Authorization")
             .and(warp::body::form::<B>())
             .map(|contents: BasicCredentials, f: B| {
                 let credentials = ClientCredentials {
@@ -108,18 +112,16 @@ impl<T: AuthenticationCodeFlow + Send + Sync + 'static> Server<T> {
             .or(from_body)
             .unify()
             .and(self.with_driver())
-            .and_then(
-                |bcc: BodyClientCredentials<B>, driver: Arc<T>| async move {
-                    let (credentials, body) = bcc.split();
+            .and_then(|bcc: BodyClientCredentials<B>, driver: Arc<T>| async move {
+                let (credentials, body) = bcc.split();
 
-                    let result = driver
-                        .check_client_auth(credentials)
-                        .await
-                        .map(|id| (id, body))
-                        .map_err(|_| warp::reject());
-                    result
-                },
-            )
+                let result = driver
+                    .check_client_auth(credentials)
+                    .await
+                    .map(|id| (id, body))
+                    .map_err(|_| warp::reject());
+                result
+            })
     }
 
     pub async fn serve(self) -> Option<()> {
