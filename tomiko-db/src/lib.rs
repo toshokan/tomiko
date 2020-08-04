@@ -123,15 +123,16 @@ impl Store for DbStore {
         client_id: &ClientId,
         code: &AuthCode,
     ) -> Result<RedirectUri, ()> {
-	let result = sqlx::query!("SELECT uri FROM codes WHERE client_id = ? AND code = ?",
-		     client_id.0,
-		     code.0
-	)
-	    .fetch_optional(&self.pool)
-	    .await
-	    .map_err(|_| ())?;
-	
-	result.map(|r| RedirectUri(r.uri)).ok_or(())
+        let result = sqlx::query!(
+            "SELECT uri FROM codes WHERE client_id = ? AND code = ?",
+            client_id.0,
+            code.0
+        )
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(|_| ())?;
+
+        result.map(|r| RedirectUri(r.uri)).ok_or(())
     }
 }
 
