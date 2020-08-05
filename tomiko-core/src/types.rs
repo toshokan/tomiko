@@ -81,3 +81,17 @@ pub struct ClientSecret(pub String); // TODO
     serde(transparent)
 )]
 pub struct AuthCode(pub String); // TODO
+
+#[derive(Debug)]
+pub struct Client {
+    client_id: ClientId
+}
+
+#[derive(Debug)]
+pub struct AuthCodeData {
+    pub code: AuthCode,
+    pub client_id: ClientId,
+    pub state: String,
+    pub redirect_uri: RedirectUri,
+    pub scope: Scope,
+}
