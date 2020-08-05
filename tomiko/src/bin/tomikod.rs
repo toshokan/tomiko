@@ -71,9 +71,9 @@ impl AuthenticationCodeFlow for OAuthDriver {
         client_id: ClientId,
         req: TokenRequest,
     ) -> Result<AccessTokenResponse, AccessTokenError> {
-        let uri = self
+        let data = self
             .store
-            .get_authcode_uri(&client_id, &req.code)
+            .get_authcode_data(&client_id, &req.code)
             .await
             .map_err(|_| AccessTokenError {
                 kind: AccessTokenErrorKind::InvalidGrant,
@@ -81,7 +81,7 @@ impl AuthenticationCodeFlow for OAuthDriver {
                 uri: None,
             })?;
 
-        if uri == req.redirect_uri {
+        if data.redirect_uri == req.redirect_uri {
             Ok(AccessTokenResponse {
                 access_token: "TOKEN_SAMPLE".to_string(),
                 token_type: "SAMPLE".to_string(),

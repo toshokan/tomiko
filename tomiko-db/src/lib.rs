@@ -1,7 +1,7 @@
 #![allow(clippy::toplevel_ref_arg)]
 
 use tomiko_core::types::{
-    AuthCode, Client, ClientId, HashedClientSecret, RedirectRecord, RedirectUri,
+    AuthCode, AuthCodeData, Client, ClientId, HashedClientSecret, RedirectRecord, RedirectUri, Scope,
 };
 
 use sqlx::sqlite::SqlitePool;
@@ -22,11 +22,7 @@ pub trait Store {
         client_id: ClientId,
         secret: HashedClientSecret,
     ) -> Result<Client, ()>;
-    async fn get_authcode_uri(
-        &self,
-        client_id: &ClientId,
-        code: &AuthCode,
-    ) -> Result<RedirectUri, ()>;
+    async fn get_authcode_data(&self, client_id: &ClientId, code: &AuthCode) -> Result<AuthCodeData, ()>;
 }
 
 #[derive(Debug)]
@@ -95,7 +91,7 @@ impl Store for DbStore {
             .map_err(|_| ())?
             .map(|r| Client {
                 id: ClientId(r.client_id),
-		secret: HashedClientSecret(r.secret_hash)
+                secret: HashedClientSecret(r.secret_hash),
             })
             .ok_or(())
     }
@@ -117,20 +113,29 @@ impl Store for DbStore {
         self.get_client(&client_id).await
     }
 
-    async fn get_authcode_uri(
+    async fn get_authcode_data(
         &self,
         client_id: &ClientId,
         code: &AuthCode,
-    ) -> Result<RedirectUri, ()> {
+    ) -> Result<AuthCodeData, ()> {
         let result = sqlx::query!(
-            "SELECT uri FROM codes WHERE client_id = ? AND code = ?",
+            "SELECT * FROM codes WHERE client_id = ? AND code = ?",
             client_id.0,
             code.0
         )
         .fetch_optional(&self.pool)
         .await
-        .map_err(|_| ())?;
+            .map_err(|_| ())?
+            .map(|r| {
+		AuthCodeData {
+		    client_id: ClientId(r.client_id),
+		    code: AuthCode(r.code),
+		    state: r.state,
+		    redirect_uri: RedirectUri(r.uri),
+		    scope: r.scope.map(Scope::from_delimited_parts)
+		}
+	    });
 
-        result.map(|r| RedirectUri(r.uri)).ok_or(())
+        result.ok_or(())
     }
 }

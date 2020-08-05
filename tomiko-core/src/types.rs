@@ -14,17 +14,24 @@ pub enum GrantType {
 #[derive(Debug)]
 pub struct Scope(Vec<String>);
 
+impl Scope {
+    pub fn from_delimited_parts(parts: String) -> Self {
+	let parts = parts
+	    .split(' ')
+	    .map(ToString::to_string)
+	    .collect();
+	Self(parts)
+    }
+}
+
 #[cfg(feature = "serde-traits")]
 impl<'de> Deserialize<'de> for Scope {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
         D: Deserializer<'de>,
     {
-        let parts = String::deserialize(deserializer)?
-            .split(' ')
-            .map(ToString::to_string)
-            .collect();
-        Ok(Self(parts))
+        let parts = String::deserialize(deserializer)?;
+        Ok(Self::from_delimited_parts(parts))
     }
 }
 
@@ -101,9 +108,9 @@ pub struct Client {
 pub struct AuthCodeData {
     pub code: AuthCode,
     pub client_id: ClientId,
-    pub state: String,
+    pub state: Option<String>,
     pub redirect_uri: RedirectUri,
-    pub scope: Scope,
+    pub scope: Option<Scope>,
 }
 
 #[derive(Debug)]
