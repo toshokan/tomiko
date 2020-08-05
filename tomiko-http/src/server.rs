@@ -142,8 +142,7 @@ impl<T: AuthenticationCodeFlow + Send + Sync + 'static> Server<T> {
 		map.insert("test123".to_string(), (req, false));
 		
 		warp::http::Response::builder()
-		    .header("tomiko-sid", "test123")
-		    .header("Location", "http://localhost:8002/login.html")
+		    .header("Location", "http://localhost:8002/login.html?sid=test123")
 		    .status(307)
 		    .body(warp::hyper::Body::empty())
                 // Self::authenticate(&driver, req).await
