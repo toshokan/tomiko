@@ -125,13 +125,28 @@ impl<T: AuthenticationCodeFlow + Send + Sync + 'static> Server<T> {
     }
 
     pub async fn serve(self) -> Option<()> {
+	use std::collections::HashMap;
+	use std::sync::Mutex;
+	
         let oauth = warp::path("oauth");
+	let state: Arc<Mutex<HashMap<String, (AuthorizationRequest, bool)>>> = Arc::new(std::sync::Mutex::new(HashMap::new()));
+
+	let with_state = warp::any().map(move || state.clone());
 
         let authenticate = warp::path("authenticate")
             .and(self.with_driver())
             .and(warp::filters::query::query())
-            .and_then(|driver: Arc<T>, req: AuthorizationRequest| async move {
-                Self::authenticate(&driver, req).await
+	    .and(with_state.clone())
+            .map(|driver: Arc<T>, req: AuthorizationRequest, state: Arc<Mutex<HashMap<String, _>>>| {
+		let mut map = state.lock().unwrap();
+		map.insert("test123".to_string(), (req, false));
+		
+		warp::http::Response::builder()
+		    .header("tomiko-sid", "test123")
+		    .header("Location", "/check_auth")
+		    .status(307)
+		    .body(warp::hyper::Body::empty())
+                // Self::authenticate(&driver, req).await
             });
 
         let token_request = warp::path("token")
@@ -155,13 +170,61 @@ impl<T: AuthenticationCodeFlow + Send + Sync + 'static> Server<T> {
                     .map(|c| warp::reply::html(format!("{:?}", c)))
             });
 
+	let next = warp::path("continue")
+	    .and(warp::path::param())
+	    .and(warp::path::end())
+	    .and(with_state.clone())
+	    .and(self.with_driver())
+	    .and_then(|sid: String, state: Arc<Mutex<HashMap<String, (AuthorizationRequest, bool)>>>, driver: Arc<T>| async move {
+		let (req, auth) = {
+		    let mut state = state.lock().unwrap();
+		    state.remove(&sid).unwrap()
+		};
+		
+		if auth {
+		    Self::authenticate(&driver, req)
+			.await
+		} else {
+		    Err(warp::reject())
+		}
+	    });
+
+	let check = warp::path("check_auth")
+	    .and(warp::query())
+	    .and(with_state.clone())
+	    .and_then(|req: CheckAuthRequest, state: Arc<Mutex<HashMap<String, (AuthorizationRequest, bool)>>>| async move {
+		let svc = CheckAuthService;
+		let result = svc.check_credentials(&req)
+		    .await;
+		let mut state = state.lock().unwrap();
+		state.entry(req.sid.clone()).and_modify(|e| e.1 = result);
+		
+		let val: Result<warp::reply::Json, warp::Rejection> = Ok(warp::reply::json(&result));
+		val
+	    });
+
         let routes = oauth
             .and(warp::path("v1"))
             .and(authenticate.or(token_request).or(make_client))
             .recover(Self::handle_reject);
 
-        warp::serve(routes).run(([127, 0, 0, 1], 8001)).await;
+        warp::serve(check.or(next).or(routes)).run(([127, 0, 0, 1], 8001)).await;
 
         Some(())
+    }
+}
+
+struct CheckAuthService;
+
+#[derive(serde::Deserialize)]
+struct CheckAuthRequest {
+    username: String,
+    password: String,
+    sid: String
+}
+
+impl CheckAuthService {
+    async fn check_credentials(&self, req: &CheckAuthRequest) -> bool {
+	req.password == "test"
     }
 }
