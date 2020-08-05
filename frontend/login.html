@@ -1,14 +1,22 @@
 <!DOCTYPE html>
 <html>
-  <body>
+  <script>
+    const setSid = () => {
+	const qs = new URLSearchParams(window.location.search);
+	const sid = qs.get("sid");
+	document.getElementById('sid_input').value = sid;
+    }
+  </script>
+  <body onload="setSid()">
     <h2>Login</h2>
 
     <form action="http://localhost:8001/check_auth" method="post">
       <input type="text" name="username" placeholder="username"><br><br>
       <input type="password" name="password" placeholder="password"><br><br>
-      <input type="text" name="sid" placeholder="sid"><br><br>
+      <input type="hidden" id="sid_input" name="sid">
       <input type="submit" value="Submit">
     </form>
-
+    
   </body>
+  
 </html>
