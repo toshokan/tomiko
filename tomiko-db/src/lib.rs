@@ -1,4 +1,4 @@
-#![allow(clippy::toplevel_ref_arf)]
+#![allow(clippy::toplevel_ref_arg)]
 
 use tomiko_auth::HashedClientSecret;
 use tomiko_core::types::{AuthCode, ClientId, RedirectUri};
