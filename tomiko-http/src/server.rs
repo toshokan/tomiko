@@ -143,7 +143,7 @@ impl<T: AuthenticationCodeFlow + Send + Sync + 'static> Server<T> {
 		
 		warp::http::Response::builder()
 		    .header("tomiko-sid", "test123")
-		    .header("Location", "/check_auth")
+		    .header("Location", "http://localhost:8002/login.html")
 		    .status(307)
 		    .body(warp::hyper::Body::empty())
                 // Self::authenticate(&driver, req).await
@@ -189,8 +189,9 @@ impl<T: AuthenticationCodeFlow + Send + Sync + 'static> Server<T> {
 		}
 	    });
 
-	let check = warp::path("check_auth")
-	    .and(warp::query())
+	let check = warp::post()
+	    .and(warp::path("check_auth"))
+	    .and(warp::body::form())
 	    .and(with_state.clone())
 	    .and_then(|req: CheckAuthRequest, state: Arc<Mutex<HashMap<String, (AuthorizationRequest, bool)>>>| async move {
 		let svc = CheckAuthService;
@@ -198,9 +199,16 @@ impl<T: AuthenticationCodeFlow + Send + Sync + 'static> Server<T> {
 		    .await;
 		let mut state = state.lock().unwrap();
 		state.entry(req.sid.clone()).and_modify(|e| e.1 = result);
-		
-		let val: Result<warp::reply::Json, warp::Rejection> = Ok(warp::reply::json(&result));
-		val
+
+		if result {
+                   let resp = warp::http::Response::builder()
+                       .header("Location", format!("/continue/{}", &req.sid))
+                       .status(307)
+                       .body(warp::hyper::Body::empty());
+                   Ok(resp)
+               } else {
+                   Err(warp::reject())
+               }
 	    });
 
         let routes = oauth
