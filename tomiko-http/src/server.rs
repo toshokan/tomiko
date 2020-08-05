@@ -137,9 +137,11 @@ impl<T: AuthenticationCodeFlow + Send + Sync + 'static> Server<T> {
             .and(warp::post())
             .and(self.with_driver())
             .and(self.request_auth())
-            .and_then(|driver: Arc<T>, (client, req): (Client, TokenRequest)| async move {
-                Self::token_request(&driver, client.id, req).await
-            });
+            .and_then(
+                |driver: Arc<T>, (client, req): (Client, TokenRequest)| async move {
+                    Self::token_request(&driver, client.id, req).await
+                },
+            );
 
         let make_client = warp::path("client")
             .and(self.with_driver())

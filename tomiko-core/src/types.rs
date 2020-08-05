@@ -16,11 +16,12 @@ pub struct Scope(Vec<String>);
 
 impl Scope {
     pub fn from_delimited_parts(parts: String) -> Self {
-	let parts = parts
-	    .split(' ')
-	    .map(ToString::to_string)
-	    .collect();
-	Self(parts)
+        let parts = parts.split(' ').map(ToString::to_string).collect();
+        Self(parts)
+    }
+
+    pub fn as_joined(&self) -> String {
+        self.0.join(" ")
     }
 }
 
@@ -101,7 +102,7 @@ pub struct AuthCode(pub String); // TODO
 #[derive(Debug)]
 pub struct Client {
     pub id: ClientId,
-    pub secret: HashedClientSecret
+    pub secret: HashedClientSecret,
 }
 
 #[derive(Debug)]

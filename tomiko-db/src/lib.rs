@@ -1,7 +1,8 @@
 #![allow(clippy::toplevel_ref_arg)]
 
 use tomiko_core::types::{
-    AuthCode, AuthCodeData, Client, ClientId, HashedClientSecret, RedirectRecord, RedirectUri, Scope,
+    AuthCode, AuthCodeData, Client, ClientId, HashedClientSecret, RedirectRecord, RedirectUri,
+    Scope,
 };
 
 use sqlx::sqlite::SqlitePool;
@@ -9,20 +10,18 @@ use sqlx::sqlite::SqlitePool;
 #[async_trait::async_trait]
 pub trait Store {
     async fn check_client_uri(&self, client_id: &ClientId, uri: &RedirectUri) -> Result<(), ()>;
-    async fn store_code(
-        &self,
-        client_id: &ClientId,
-        code: AuthCode,
-        state: &Option<String>,
-        uri: &RedirectUri,
-    ) -> Result<AuthCode, ()>;
+    async fn store_code(&self, data: AuthCodeData) -> Result<AuthCodeData, ()>;
     async fn get_client(&self, client_id: &ClientId) -> Result<Client, ()>;
     async fn put_client(
         &self,
         client_id: ClientId,
         secret: HashedClientSecret,
     ) -> Result<Client, ()>;
-    async fn get_authcode_data(&self, client_id: &ClientId, code: &AuthCode) -> Result<AuthCodeData, ()>;
+    async fn get_authcode_data(
+        &self,
+        client_id: &ClientId,
+        code: &AuthCode,
+    ) -> Result<AuthCodeData, ()>;
 }
 
 #[derive(Debug)]
@@ -64,24 +63,22 @@ impl Store for DbStore {
         }
         Err(())
     }
-    async fn store_code(
-        &self,
-        client_id: &ClientId,
-        code: AuthCode,
-        state: &Option<String>,
-        uri: &RedirectUri,
-    ) -> Result<AuthCode, ()> {
+    async fn store_code(&self, data: AuthCodeData) -> Result<AuthCodeData, ()> {
+        let scope = data.scope.as_ref().map(|s| s.as_joined());
+
         sqlx::query!(
-            "INSERT INTO codes(client_id, code, state, uri) VALUES(?, ?, ?, ?)",
-            client_id.0,
-            code.0,
-            state,
-            uri.0
+            "INSERT INTO codes(client_id, code, state, uri, scope) VALUES(?, ?, ?, ?, ?)",
+            data.client_id.0,
+            data.code.0,
+            data.state,
+            data.redirect_uri.0,
+            scope
         )
         .execute(&self.pool)
         .await
         .map_err(|_| ())?;
-        Ok(code)
+
+        Ok(data)
     }
 
     async fn get_client(&self, id: &ClientId) -> Result<Client, ()> {
@@ -125,16 +122,14 @@ impl Store for DbStore {
         )
         .fetch_optional(&self.pool)
         .await
-            .map_err(|_| ())?
-            .map(|r| {
-		AuthCodeData {
-		    client_id: ClientId(r.client_id),
-		    code: AuthCode(r.code),
-		    state: r.state,
-		    redirect_uri: RedirectUri(r.uri),
-		    scope: r.scope.map(Scope::from_delimited_parts)
-		}
-	    });
+        .map_err(|_| ())?
+        .map(|r| AuthCodeData {
+            client_id: ClientId(r.client_id),
+            code: AuthCode(r.code),
+            state: r.state,
+            redirect_uri: RedirectUri(r.uri),
+            scope: r.scope.map(Scope::from_delimited_parts),
+        });
 
         result.ok_or(())
     }

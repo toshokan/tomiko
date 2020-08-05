@@ -3,7 +3,7 @@ use tomiko_auth::{
     AuthorizationError, AuthorizationRequest, AuthorizationResponse, ClientCredentials,
     TokenRequest,
 };
-use tomiko_core::types::{AuthCode, Client, ClientId, RedirectUri};
+use tomiko_core::types::{AuthCode, AuthCodeData, Client, ClientId, RedirectUri};
 use tomiko_util::{hash::HashingService, random::FromRandom};
 
 use async_trait::async_trait;
@@ -55,14 +55,25 @@ impl AuthenticationCodeFlow for OAuthDriver {
     ) -> Result<AuthorizationResponse, AuthorizationError> {
         self.validate_client(&req.client_id, &req.redirect_uri, &req.state)
             .await?;
+        let state = req.state.clone();
 
         let code = AuthCode::from_random();
-        let code = self
+
+        let data = AuthCodeData {
+            client_id: req.client_id,
+            code,
+            state: req.state,
+            redirect_uri: req.redirect_uri,
+            scope: Some(req.scope), // TODO
+        };
+
+        let data = self
             .store
-            .store_code(&req.client_id, code, &req.state, &req.redirect_uri)
+            .store_code(data)
             .await
-            .map_err(|_| AuthorizationError::server_error(&req.state))?;
-        let response = AuthorizationResponse::new(code, req.state);
+            .map_err(|_| AuthorizationError::server_error(&state))?;
+
+        let response = AuthorizationResponse::new(data.code, data.state);
         Ok(response)
     }
 
@@ -81,13 +92,13 @@ impl AuthenticationCodeFlow for OAuthDriver {
                 uri: None,
             })?;
 
-        if data.redirect_uri == req.redirect_uri {
+        if &data.redirect_uri == &req.redirect_uri {
             Ok(AccessTokenResponse {
                 access_token: "TOKEN_SAMPLE".to_string(),
                 token_type: "SAMPLE".to_string(),
                 refresh_token: None,
                 expires_in: None,
-                scope: None,
+                scope: data.scope,
             })
         } else {
             Err(AccessTokenError {
