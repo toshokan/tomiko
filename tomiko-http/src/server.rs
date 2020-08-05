@@ -1,9 +1,9 @@
 use super::FormEncoded;
 use tomiko_auth::{
     AccessTokenError, AuthenticationCodeFlow, AuthorizationError, AuthorizationRequest,
+    ClientCredentials, TokenRequest,
 };
-use tomiko_auth::{ClientCredentials, TokenRequest};
-use tomiko_core::types::{ClientId, ClientSecret};
+use tomiko_core::types::{Client, ClientId, ClientSecret};
 
 use std::sync::Arc;
 use warp::{Filter, Rejection, Reply};
@@ -96,7 +96,7 @@ impl<T: AuthenticationCodeFlow + Send + Sync + 'static> Server<T> {
 
     fn request_auth<B: serde::de::DeserializeOwned + Send>(
         &self,
-    ) -> impl Filter<Extract = ((ClientId, B),), Error = Rejection> + Clone {
+    ) -> impl Filter<Extract = ((Client, B),), Error = Rejection> + Clone {
         let basic = warp::header::<BasicCredentials>("Authorization")
             .and(warp::body::form::<B>())
             .map(|contents: BasicCredentials, f: B| {
@@ -137,8 +137,8 @@ impl<T: AuthenticationCodeFlow + Send + Sync + 'static> Server<T> {
             .and(warp::post())
             .and(self.with_driver())
             .and(self.request_auth())
-            .and_then(|driver: Arc<T>, (client_id, req)| async move {
-                Self::token_request(&driver, client_id, req).await
+            .and_then(|driver: Arc<T>, (client, req): (Client, TokenRequest)| async move {
+                Self::token_request(&driver, client.id, req).await
             });
 
         let make_client = warp::path("client")

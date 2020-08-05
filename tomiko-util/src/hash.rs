@@ -1,13 +1,4 @@
-use tomiko_core::types::{ClientId, ClientSecret};
-
-#[derive(Debug)]
-pub struct HashedClientSecret(pub String);
-
-impl HashedClientSecret {
-    pub fn from_raw(raw: String) -> Self {
-        Self(raw)
-    }
-}
+use tomiko_core::types::{ClientId, ClientSecret, HashedClientSecret};
 
 #[derive(Debug)]
 pub struct HashedClientCredentials {

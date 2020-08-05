@@ -3,7 +3,7 @@ use tomiko_auth::{
     AuthorizationError, AuthorizationRequest, AuthorizationResponse, ClientCredentials,
     TokenRequest,
 };
-use tomiko_core::types::{AuthCode, ClientId, RedirectUri};
+use tomiko_core::types::{AuthCode, Client, ClientId, RedirectUri};
 use tomiko_util::{hash::HashingService, random::FromRandom};
 
 use async_trait::async_trait;
@@ -34,7 +34,7 @@ impl OAuthDriver {
 
 #[async_trait]
 impl AuthenticationCodeFlow for OAuthDriver {
-    async fn check_client_auth(&self, credentials: ClientCredentials) -> Result<ClientId, ()> {
+    async fn check_client_auth(&self, credentials: ClientCredentials) -> Result<Client, ()> {
         let client = self.store.get_client(&credentials.client_id).await?;
 
         let result = self
@@ -43,7 +43,7 @@ impl AuthenticationCodeFlow for OAuthDriver {
             .map_err(|_| ())?;
 
         if result {
-            Ok(client.id)
+            Ok(client)
         } else {
             Err(())
         }
@@ -98,10 +98,10 @@ impl AuthenticationCodeFlow for OAuthDriver {
         }
     }
 
-    async fn create_client(&self, credentials: ClientCredentials) -> Result<ClientId, ()> {
+    async fn create_client(&self, credentials: ClientCredentials) -> Result<Client, ()> {
         let hashed = self.hasher.hash(&credentials.client_secret)?;
         let client = self.store.put_client(credentials.client_id, hashed).await?;
-        Ok(client.id)
+        Ok(client)
     }
 }
 

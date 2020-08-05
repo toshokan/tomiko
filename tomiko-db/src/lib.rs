@@ -1,11 +1,8 @@
 #![allow(clippy::toplevel_ref_arg)]
 
-use tomiko_util::hash::HashedClientSecret;
-use tomiko_core::types::{AuthCode, ClientId, RedirectUri};
-
-mod types;
-
-use types::{Client, RedirectRecord};
+use tomiko_core::types::{
+    AuthCode, Client, ClientId, HashedClientSecret, RedirectRecord, RedirectUri,
+};
 
 use sqlx::sqlite::SqlitePool;
 
@@ -98,7 +95,7 @@ impl Store for DbStore {
             .map_err(|_| ())?
             .map(|r| Client {
                 id: ClientId(r.client_id),
-                secret: HashedClientSecret::from_raw(r.secret_hash),
+		secret: HashedClientSecret(r.secret_hash)
             })
             .ok_or(())
     }

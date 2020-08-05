@@ -1,5 +1,5 @@
 use tomiko_core::types::{
-    AuthCode, ClientId, ClientSecret, GrantType, RedirectUri, ResponseType, Scope,
+    AuthCode, Client, ClientId, ClientSecret, GrantType, RedirectUri, ResponseType, Scope,
 };
 
 use async_trait::async_trait;
@@ -157,7 +157,7 @@ pub struct ClientCredentials {
 
 #[async_trait]
 pub trait AuthenticationCodeFlow {
-    async fn check_client_auth(&self, credentials: ClientCredentials) -> Result<ClientId, ()>;
+    async fn check_client_auth(&self, credentials: ClientCredentials) -> Result<Client, ()>;
     async fn authorization_request(
         &self,
         req: AuthorizationRequest,
@@ -167,5 +167,5 @@ pub trait AuthenticationCodeFlow {
         client: ClientId,
         req: TokenRequest,
     ) -> Result<AccessTokenResponse, AccessTokenError>;
-    async fn create_client(&self, credentials: ClientCredentials) -> Result<ClientId, ()>;
+    async fn create_client(&self, credentials: ClientCredentials) -> Result<Client, ()>;
 }

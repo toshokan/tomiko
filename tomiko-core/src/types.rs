@@ -74,6 +74,15 @@ pub struct RedirectUri(pub String); // TODO
 pub struct ClientSecret(pub String); // TODO
 
 #[derive(Debug)]
+pub struct HashedClientSecret(pub String);
+
+impl HashedClientSecret {
+    pub fn from_raw(raw: String) -> Self {
+        Self(raw)
+    }
+}
+
+#[derive(Debug)]
 #[cfg_attr(
     feature = "serde-traits",
     derive(serde::Serialize),
@@ -84,7 +93,8 @@ pub struct AuthCode(pub String); // TODO
 
 #[derive(Debug)]
 pub struct Client {
-    pub id: ClientId
+    pub id: ClientId,
+    pub secret: HashedClientSecret
 }
 
 #[derive(Debug)]
