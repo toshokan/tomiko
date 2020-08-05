@@ -1,9 +1,7 @@
 #![allow(clippy::toplevel_ref_arg)]
 
-use tomiko_core::types::{
-    AuthCode, AuthCodeData, Client, ClientId, HashedClientSecret, RedirectRecord, RedirectUri,
-    Scope,
-};
+use tomiko_core::models::{AuthCodeData, Client, RedirectRecord};
+use tomiko_core::types::{AuthCode, ClientId, HashedClientSecret, RedirectUri, Scope};
 
 use sqlx::sqlite::SqlitePool;
 

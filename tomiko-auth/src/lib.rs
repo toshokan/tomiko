@@ -1,6 +1,7 @@
 use tomiko_core::types::{
-    AuthCode, Client, ClientId, ClientSecret, GrantType, RedirectUri, ResponseType, Scope,
+    AuthCode, ClientId, ClientSecret, GrantType, RedirectUri, ResponseType, Scope,
 };
+use tomiko_core::models::Client;
 
 use async_trait::async_trait;
 

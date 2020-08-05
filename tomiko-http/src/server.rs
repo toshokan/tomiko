@@ -3,7 +3,8 @@ use tomiko_auth::{
     AccessTokenError, AuthenticationCodeFlow, AuthorizationError, AuthorizationRequest,
     ClientCredentials, TokenRequest,
 };
-use tomiko_core::types::{Client, ClientId, ClientSecret};
+use tomiko_core::types::{ClientId, ClientSecret};
+use tomiko_core::models::Client;
 
 use std::sync::Arc;
 use warp::{Filter, Rejection, Reply};

@@ -3,7 +3,8 @@ use tomiko_auth::{
     AuthorizationError, AuthorizationRequest, AuthorizationResponse, ClientCredentials,
     TokenRequest,
 };
-use tomiko_core::types::{AuthCode, AuthCodeData, Client, ClientId, RedirectUri};
+use tomiko_core::types::{AuthCode, ClientId, RedirectUri};
+use tomiko_core::models::{AuthCodeData, Client};
 use tomiko_util::{hash::HashingService, random::FromRandom};
 
 use async_trait::async_trait;
