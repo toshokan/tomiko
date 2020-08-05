@@ -115,12 +115,11 @@ impl<T: AuthenticationCodeFlow + Send + Sync + 'static> Server<T> {
             .and_then(|bcc: BodyClientCredentials<B>, driver: Arc<T>| async move {
                 let (credentials, body) = bcc.split();
 
-                let result = driver
+                driver
                     .check_client_auth(credentials)
                     .await
                     .map(|id| (id, body))
-                    .map_err(|_| warp::reject());
-                result
+                    .map_err(|_| warp::reject())
             })
     }
 

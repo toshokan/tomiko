@@ -208,12 +208,11 @@ impl HashingService {
 
     pub fn verify(&self, secret: &ClientSecret, hashed: &HashedClientSecret) -> Result<bool, ()> {
         let mut verifier = argonautica::Verifier::default();
-        let result = verifier
+        verifier
             .with_secret_key(&self.secret_key)
             .with_password(&secret.0)
             .with_hash(&hashed.0)
             .verify()
-            .map_err(|_| ());
-        result
+            .map_err(|_| ())
     }
 }
