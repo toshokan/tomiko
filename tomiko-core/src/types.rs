@@ -55,7 +55,6 @@ pub enum ResponseType {
     derive(serde::Deserialize),
     serde(transparent)
 )]
-#[cfg_attr(feature = "sqlx-traits", derive(sqlx::Type), sqlx(transparent))]
 pub struct ClientId(pub String); // TODO
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -64,7 +63,6 @@ pub struct ClientId(pub String); // TODO
     derive(serde::Deserialize),
     serde(transparent)
 )]
-#[cfg_attr(feature = "sqlx-traits", derive(sqlx::Type), sqlx(transparent))]
 pub struct RedirectUri(pub String); // TODO
 
 #[derive(Debug)]
@@ -73,7 +71,6 @@ pub struct RedirectUri(pub String); // TODO
     derive(serde::Deserialize),
     serde(transparent)
 )]
-#[cfg_attr(feature = "sqlx-traits", derive(sqlx::Type), sqlx(transparent))]
 pub struct ClientSecret(pub String); // TODO
 
 #[derive(Debug)]
@@ -83,11 +80,4 @@ pub struct ClientSecret(pub String); // TODO
     derive(serde::Deserialize),
     serde(transparent)
 )]
-#[cfg_attr(feature = "sqlx-traits", derive(sqlx::Type), sqlx(transparent))]
 pub struct AuthCode(pub String); // TODO
-
-// impl AuthCode {
-//     pub fn random() -> Self {
-// 	Self(random_string(32))
-//     }
-// }
