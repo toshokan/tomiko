@@ -27,7 +27,7 @@ impl HashingService {
         Ok(HashedClientSecret(hash))
     }
 
-    pub fn verify(&spelf, secret: &ClientSecret, hashed: &HashedClientSecret) -> Result<bool, ()> {
+    pub fn verify(&self, secret: &ClientSecret, hashed: &HashedClientSecret) -> Result<bool, ()> {
         let mut verifier = argonautica::Verifier::default();
         verifier
             .with_secret_key(&self.secret_key)
