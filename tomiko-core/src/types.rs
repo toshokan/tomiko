@@ -84,7 +84,7 @@ pub struct AuthCode(pub String); // TODO
 
 #[derive(Debug)]
 pub struct Client {
-    client_id: ClientId
+    pub id: ClientId
 }
 
 #[derive(Debug)]
@@ -94,4 +94,10 @@ pub struct AuthCodeData {
     pub state: String,
     pub redirect_uri: RedirectUri,
     pub scope: Scope,
+}
+
+#[derive(Debug)]
+pub struct RedirectRecord {
+    pub client_id: ClientId,
+    pub uri: RedirectUri,
 }
