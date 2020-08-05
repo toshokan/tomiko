@@ -55,8 +55,8 @@ impl Store for DbStore {
     async fn check_client_uri(&self, client_id: &ClientId, uri: &RedirectUri) -> Result<(), ()> {
         let result: Option<RedirectRecord> = sqlx::query!(
             r#"SELECT * FROM uris WHERE client_id = ? AND uri = ?"#,
-            client_id,
-            uri
+            client_id.0,
+            uri.0
         )
         .fetch_optional(&self.pool)
         .await
@@ -80,8 +80,8 @@ impl Store for DbStore {
     ) -> Result<AuthCode, ()> {
         sqlx::query!(
             "INSERT INTO codes(client_id, code, state, uri) VALUES(?, ?, ?, ?)",
-            client_id,
-            code,
+            client_id.0,
+            code.0,
             state,
             uri.0
         )
@@ -92,7 +92,7 @@ impl Store for DbStore {
     }
 
     async fn get_client(&self, id: &ClientId) -> Result<Client, ()> {
-        sqlx::query!("SELECT * from clients WHERE client_id = ?", id)
+        sqlx::query!("SELECT * from clients WHERE client_id = ?", id.0)
             .fetch_optional(&self.pool)
             .await
             .map_err(|_| ())?
@@ -137,27 +137,3 @@ impl Store for DbStore {
         result.map(|r| RedirectUri(r.uri)).ok_or(())
     }
 }
-
-// async fn give_token(db: SqlitePool, client_id: &ClientId, code: &AuthCode) -> Result<String, ()> {
-//     use sqlx::sqlite::SqliteQueryAs;
-
-//     let mut tx = db.begin().await.unwrap();
-//     let code: Option<(AuthCode,)> = sqlx::query_as("SELECT code FROM codes WHERE client_id = ? AND code = ?")
-//         .bind(&client_id)
-//         .bind(&code)
-//         .fetch_optional(&mut tx).await.unwrap();
-
-//     if let Some(c) = code {
-// 	let r = sqlx::query("DELETE FROM codes WHERE client_id = ? AND code = ?")
-// 	    .bind(&client_id)
-// 	    .bind(&c.0)
-// 	    .execute(&mut tx).await;
-// 	if r.is_ok() {
-// 	    tx.commit().await.unwrap();
-// 	    return Ok("done!".to_string())
-// 	}
-//     }
-
-//     Err(())
-//     // Err(warp::reject::custom(ErrorResponse::default())) // TODO: Return the correct error
-// }
