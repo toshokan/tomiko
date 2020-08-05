@@ -8,5 +8,6 @@ edition = "2018"
 
 [dependencies]
 tomiko-core = { path = "../tomiko-core" }
+argonautica = { git = "https://github.com/bcmyers/argonautica" }
 rand = "0.7"
 base64 = "^0.12"

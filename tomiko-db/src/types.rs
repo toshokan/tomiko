@@ -1,4 +1,4 @@
-use tomiko_auth::HashedClientSecret;
+use tomiko_util::hash::HashedClientSecret;
 use tomiko_core::types::{ClientId, RedirectUri};
 
 #[derive(Debug)]

@@ -1,10 +1,10 @@
 use tomiko_auth::{
     AccessTokenError, AccessTokenErrorKind, AccessTokenResponse, AuthenticationCodeFlow,
     AuthorizationError, AuthorizationRequest, AuthorizationResponse, ClientCredentials,
-    HashingService, TokenRequest,
+    TokenRequest,
 };
 use tomiko_core::types::{AuthCode, ClientId, RedirectUri};
-use tomiko_util::random::FromRandom;
+use tomiko_util::{hash::HashingService, random::FromRandom};
 
 use async_trait::async_trait;
 use tomiko_db::{DbStore, Store};

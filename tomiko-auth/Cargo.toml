@@ -12,6 +12,5 @@ serde-traits = ["serde"]
 
 [dependencies]
 tomiko-core = { path = "../tomiko-core", default-features = false, features = ["serde-traits"] }
-argonautica = { git = "https://github.com/bcmyers/argonautica" }
 async-trait = "^0.1"
 serde = { version = "^1", features = ["derive"], optional = true }
