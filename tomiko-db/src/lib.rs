@@ -2,27 +2,10 @@
 
 use tomiko_core::models::{AuthCodeData, Client, RedirectRecord};
 use tomiko_core::types::{AuthCode, ClientId, HashedClientSecret, RedirectUri, Scope};
+use tomiko_auth::Store;
 
 use sqlx::sqlite::SqlitePool;
 use std::time::SystemTime;
-
-#[async_trait::async_trait]
-pub trait Store {
-    async fn check_client_uri(&self, client_id: &ClientId, uri: &RedirectUri) -> Result<(), ()>;
-    async fn store_code(&self, data: AuthCodeData, expiry: SystemTime) -> Result<AuthCodeData, ()>;
-    async fn get_client(&self, client_id: &ClientId) -> Result<Client, ()>;
-    async fn put_client(
-        &self,
-        client_id: ClientId,
-        secret: HashedClientSecret,
-    ) -> Result<Client, ()>;
-    async fn get_authcode_data(
-        &self,
-        client_id: &ClientId,
-        code: &AuthCode,
-    ) -> Result<AuthCodeData, ()>;
-    async fn clean_up(&self) -> Result<(), ()>;
-}
 
 #[derive(Debug)]
 pub struct DbStore {

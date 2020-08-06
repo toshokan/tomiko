@@ -1,9 +1,10 @@
-use tomiko_core::types::{
-    AuthCode, ClientId, ClientSecret, GrantType, RedirectUri, ResponseType, Scope,
-};
-use tomiko_core::models::Client;
-
 use async_trait::async_trait;
+use tomiko_core::models::{AuthCodeData, Client};
+use tomiko_core::types::{
+    AuthCode, ClientId, ClientSecret, GrantType, HashedClientSecret, RedirectUri, ResponseType,
+    Scope,
+};
+use std::time::SystemTime;
 
 #[derive(Debug)]
 #[cfg_attr(feature = "serde-traits", derive(serde::Deserialize))]
@@ -156,17 +157,20 @@ pub struct ClientCredentials {
     pub client_secret: ClientSecret,
 }
 
-#[async_trait]
-pub trait AuthenticationCodeFlow {
-    async fn check_client_auth(&self, credentials: ClientCredentials) -> Result<Client, ()>;
-    async fn authorization_request(
+#[async_trait::async_trait]
+pub trait Store {
+    async fn check_client_uri(&self, client_id: &ClientId, uri: &RedirectUri) -> Result<(), ()>;
+    async fn store_code(&self, data: AuthCodeData, expiry: SystemTime) -> Result<AuthCodeData, ()>;
+    async fn get_client(&self, client_id: &ClientId) -> Result<Client, ()>;
+    async fn put_client(
         &self,
-        req: AuthorizationRequest,
-    ) -> Result<AuthorizationResponse, AuthorizationError>;
-    async fn access_token_request(
+        client_id: ClientId,
+        secret: HashedClientSecret,
+    ) -> Result<Client, ()>;
+    async fn get_authcode_data(
         &self,
-        client: ClientId,
-        req: TokenRequest,
-    ) -> Result<AccessTokenResponse, AccessTokenError>;
-    async fn create_client(&self, credentials: ClientCredentials) -> Result<Client, ()>;
+        client_id: &ClientId,
+        code: &AuthCode,
+    ) -> Result<AuthCodeData, ()>;
+    async fn clean_up(&self) -> Result<(), ()>;
 }
