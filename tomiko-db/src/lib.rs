@@ -21,7 +21,7 @@ pub trait Store {
         client_id: &ClientId,
         code: &AuthCode,
     ) -> Result<AuthCodeData, ()>;
-    async fn clean_up() -> Result<(), ()>;
+    async fn clean_up(&self) -> Result<(), ()>;
 }
 
 #[derive(Debug)]
@@ -143,6 +143,20 @@ impl Store for DbStore {
         result.ok_or(())
     }
 
-    async fn clean_up() -> Result<(), ()> {
+    async fn clean_up(&self) -> Result<(), ()> {
+        use std::convert::TryInto;
+
+        let time: i64 = SystemTime::now()
+            .duration_since(SystemTime::UNIX_EPOCH)
+            .unwrap()
+            .as_secs()
+            .try_into()
+            .unwrap();
+
+        sqlx::query!("DELETE FROM codes WHERE invalid_after <= ?", time)
+            .execute(&self.pool)
+            .await
+            .map_err(|_| ())
+            .map(|_| ())
     }
 }
