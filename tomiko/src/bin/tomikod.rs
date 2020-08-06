@@ -68,9 +68,13 @@ impl AuthenticationCodeFlow for OAuthDriver {
             scope: Some(req.scope), // TODO
         };
 
+	let expiry = std::time::SystemTime::now()
+	    .checked_add(std::time::Duration::from_secs(10 * 60))
+	    .unwrap();
+
         let data = self
             .store
-            .store_code(data)
+            .store_code(data, expiry)
             .await
             .map_err(|_| AuthorizationError::server_error(&state))?;
 
