@@ -73,16 +73,16 @@ impl Store for DbStore {
         Ok(data)
     }
 
-    async fn get_client(&self, id: &ClientId) -> Result<Client, ()> {
-        sqlx::query!("SELECT * from clients WHERE client_id = ?", id.0)
+    async fn get_client(&self, id: &ClientId) -> Result<Option<Client>, ()> {
+        let result = sqlx::query!("SELECT * from clients WHERE client_id = ?", id.0)
             .fetch_optional(&self.pool)
             .await
             .map_err(|_| ())?
             .map(|r| Client {
                 id: ClientId(r.client_id),
                 secret: HashedClientSecret(r.secret_hash),
-            })
-            .ok_or(())
+            });
+	Ok(result)
     }
 
     async fn put_client(
@@ -99,7 +99,10 @@ impl Store for DbStore {
         .await
         .map_err(|_| ())?;
 
-        self.get_client(&client_id).await
+        let client = self.get_client(&client_id)
+	    .await?
+            .expect("Client disappeared");
+	Ok(client)
     }
 
     async fn get_authcode_data(

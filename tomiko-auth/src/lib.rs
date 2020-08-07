@@ -161,7 +161,7 @@ pub struct ClientCredentials {
 pub trait Store {
     async fn check_client_uri(&self, client_id: &ClientId, uri: &RedirectUri) -> Result<(), ()>;
     async fn store_code(&self, data: AuthCodeData, expiry: SystemTime) -> Result<AuthCodeData, ()>;
-    async fn get_client(&self, client_id: &ClientId) -> Result<Client, ()>;
+    async fn get_client(&self, client_id: &ClientId) -> Result<Option<Client>, ()>;
     async fn put_client(
         &self,
         client_id: ClientId,

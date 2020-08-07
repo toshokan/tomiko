@@ -2,7 +2,7 @@ use tomiko_auth::{
     AccessTokenError, AccessTokenErrorKind, AccessTokenResponse, AuthorizationError,
     AuthorizationRequest, AuthorizationResponse, ClientCredentials, Store, TokenRequest,
 };
-use tomiko_core::models::AuthCodeData;
+use tomiko_core::models::{AuthCodeData, Client};
 use tomiko_core::types::{AuthCode, ClientId, RedirectUri};
 use tomiko_util::{hash::HashingService, random::FromRandom};
 
@@ -34,22 +34,27 @@ impl OAuth2Provider {
     async fn check_client_authentication(
         &self,
         cred: &ClientCredentials,
-    ) -> Result<(), AccessTokenError> {
-        let client = self.store.get_client(&cred.client_id).await;
-        let result = client.map(|c| {
-            self.hasher
+    ) -> Result<Client, AccessTokenError> {
+        let client = self
+            .store
+            .get_client(&cred.client_id)
+            .await;
+
+	if let Ok(Some(c)) = client {
+	    let result = self
+                .hasher
                 .verify(&cred.client_secret, &c.secret)
-                .expect("Failed to hash")
-        });
-        if let Ok(true) = result {
-            Ok(())
-        } else {
-            Err(AccessTokenError {
-                kind: AccessTokenErrorKind::InvalidClient,
-                description: Some("Bad authentication".to_string()),
-                uri: None,
-            })
-        }
+                .expect("Failed to hash");
+            if result {
+                return Ok(c)
+	    }
+	}
+
+	Err(AccessTokenError {
+            kind: AccessTokenErrorKind::InvalidClient,
+            description: Some("Bad authentication".to_string()),
+            uri: None,
+        })
     }
 }
 
