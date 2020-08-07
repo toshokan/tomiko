@@ -160,12 +160,12 @@ impl TokenService {
     }
 
     pub fn new_token(&self, _req: &TokenRequest, client: &Client) -> String {
-        use biscuit::{jws::RegisteredHeader, ClaimsSet, RegisteredClaims, JWT};
+        use biscuit::{jws::RegisteredHeader, ClaimsSet, RegisteredClaims, JWT, SingleOrMultiple::*};
 
         let claims = ClaimsSet::<()> {
             registered: RegisteredClaims {
                 issuer: Some("tomiko".to_string()),
-                subject: Some(client.id.0.to_string()),
+                audience: Some(Single(client.id.0.to_string())),
                 ..Default::default()
             },
             private: (),
