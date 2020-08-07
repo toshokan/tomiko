@@ -1,10 +1,10 @@
 use async_trait::async_trait;
+use std::time::SystemTime;
 use tomiko_core::models::{AuthCodeData, Client};
 use tomiko_core::types::{
     AuthCode, ClientId, ClientSecret, GrantType, HashedClientSecret, RedirectUri, ResponseType,
     Scope,
 };
-use std::time::SystemTime;
 
 #[derive(Debug)]
 #[cfg_attr(feature = "serde-traits", derive(serde::Deserialize))]
@@ -157,7 +157,7 @@ pub struct ClientCredentials {
     pub client_secret: ClientSecret,
 }
 
-#[async_trait::async_trait]
+#[async_trait]
 pub trait Store {
     async fn check_client_uri(&self, client_id: &ClientId, uri: &RedirectUri) -> Result<(), ()>;
     async fn store_code(&self, data: AuthCodeData, expiry: SystemTime) -> Result<AuthCodeData, ()>;
@@ -173,4 +173,17 @@ pub trait Store {
         code: &AuthCode,
     ) -> Result<AuthCodeData, ()>;
     async fn clean_up(&self) -> Result<(), ()>;
+}
+
+#[async_trait]
+pub trait Provider {
+    async fn authorization_request(
+        &self,
+        req: AuthorizationRequest,
+    ) -> Result<AuthorizationResponse, AuthorizationError>;
+    async fn access_token_request(
+        &self,
+	credentials: ClientCredentials,
+        req: TokenRequest,
+    ) -> Result<AccessTokenResponse, AccessTokenError>;
 }
