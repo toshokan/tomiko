@@ -146,6 +146,7 @@ impl Config {
 
 #[tokio::main]
 async fn main() -> Result<(), ()> {
+    tracing_subscriber::fmt::init();
     dotenv::dotenv().ok();
     let config = Config::from_env();
     tomikod(config).await.ok_or(())
