@@ -162,13 +162,13 @@ impl TokenService {
     pub fn new_token(&self, _req: &TokenRequest, client: &Client) -> String {
         use biscuit::{jws::RegisteredHeader, ClaimsSet, RegisteredClaims, JWT, SingleOrMultiple::*};
 
-        let claims = ClaimsSet::<()> {
+        let claims = ClaimsSet::<TomikoClaims> {
             registered: RegisteredClaims {
                 issuer: Some("tomiko".to_string()),
                 audience: Some(Single(client.id.0.to_string())),
                 ..Default::default()
             },
-            private: (),
+            private: TomikoClaims{},
         };
         let token = JWT::new_decoded(
             From::from(RegisteredHeader {
@@ -209,6 +209,11 @@ pub struct Config {
     database_url: String,
     hash_secret: String,
     jwt_private_key_file: String,
+}
+
+#[derive(Default, serde::Serialize, serde::Deserialize)]
+struct TomikoClaims {
+    
 }
 
 impl Config {
