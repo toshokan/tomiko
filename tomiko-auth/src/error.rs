@@ -1,4 +1,4 @@
-#[allow(dead_code)] // TODO
+// #[allow(dead_code)] // TODO
 #[derive(Clone, Debug)]
 #[derive(serde::Serialize)]
 #[serde(rename_all="snake_case")]

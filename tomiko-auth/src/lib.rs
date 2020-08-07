@@ -150,6 +150,16 @@ pub struct AccessTokenError {
     pub uri: Option<String>,
 }
 
+impl From<AccessTokenErrorKind> for AccessTokenError {
+    fn from(kind: AccessTokenErrorKind) -> Self {
+	Self {
+	    kind,
+	    description: None,
+	    uri: None
+	}
+    }
+}
+
 #[derive(Debug)]
 #[cfg_attr(feature = "serde-traits", derive(serde::Deserialize))]
 pub struct ClientCredentials {
