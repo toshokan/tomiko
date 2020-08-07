@@ -10,7 +10,6 @@ edition = "2018"
 http-basic-auth = "^0"
 tomiko-core = { path = "../tomiko-core", default-features = false, features = ["serde-traits"] }
 tomiko-auth = { path = "../tomiko-auth", default-features = false, features = ["serde-traits"] }
-tomiko-util = { path = "../tomiko-util" }
 serde = { version = "^1", features = ["derive"] }
 serde_urlencoded = "^0.6"
 tokio = { version = "^0.2", features = ["macros"] }
