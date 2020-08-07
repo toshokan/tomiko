@@ -60,7 +60,8 @@ impl<P: Provider + Send + Sync + 'static> Server<P> {
         let routes = oauth
             .and(warp::path("v1"))
             .and(authenticate.or(token_request))
-            .recover(handle_reject);
+            .recover(handle_reject)
+            .with(warp::log("http-api"));
 
         warp::serve(routes).run(([127, 0, 0, 1], 8001)).await;
 
