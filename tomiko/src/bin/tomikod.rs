@@ -15,6 +15,7 @@ use tomiko_http::server::Server;
 struct OAuth2Provider {
     store: DbStore,
     hasher: HashingService,
+    token: TokenService,
 }
 
 impl OAuth2Provider {
@@ -119,9 +120,12 @@ impl Provider for OAuth2Provider {
             .map_err(|_| AccessTokenErrorKind::InvalidGrant)?;
 
         if &data.redirect_uri == &req.redirect_uri {
+            let access_token = self.token.new_token(&req, &client);
+            let token_type = TokenService::token_type().to_string();
+
             Ok(AccessTokenResponse {
-                access_token: "TOKEN_SAMPLE".to_string(),
-                token_type: "SAMPLE".to_string(),
+                access_token,
+                token_type,
                 refresh_token: None,
                 expires_in: None,
                 scope: data.scope,
@@ -132,11 +136,63 @@ impl Provider for OAuth2Provider {
     }
 }
 
+struct TokenService {
+    secret: biscuit::jws::Secret,
+}
+
+impl std::fmt::Debug for TokenService {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "TokenService {{ ... }}")
+    }
+}
+
+impl TokenService {
+    pub fn new(secret_path: &str) -> Self {
+        use biscuit::jws::Secret;
+        let secret =
+            Secret::ecdsa_keypair_from_file(biscuit::jwa::SignatureAlgorithm::ES256, secret_path)
+                .expect("Failed to load secret key");
+        Self { secret }
+    }
+
+    pub fn token_type() -> &'static str {
+        "application/jwt"
+    }
+
+    pub fn new_token(&self, _req: &TokenRequest, client: &Client) -> String {
+        use biscuit::{jws::RegisteredHeader, ClaimsSet, RegisteredClaims, JWT};
+
+        let claims = ClaimsSet::<()> {
+            registered: RegisteredClaims {
+                issuer: Some("tomiko".to_string()),
+                subject: Some(client.id.0.to_string()),
+                ..Default::default()
+            },
+            private: (),
+        };
+        let token = JWT::new_decoded(
+            From::from(RegisteredHeader {
+                algorithm: biscuit::jwa::SignatureAlgorithm::ES256,
+                ..Default::default()
+            }),
+            claims,
+        );
+
+        let encoded = token
+            .into_encoded(&self.secret)
+            .expect("Failed to encode")
+            .unwrap_encoded()
+            .to_string();
+        encoded
+    }
+}
+
 async fn tomikod(config: Config) -> Option<()> {
     let store = DbStore::acquire(&config.database_url).await.ok()?;
     let hasher = HashingService::with_secret_key(config.hash_secret);
+    let token = TokenService::new(&config.jwt_private_key_file);
 
-    let provider = Arc::new(OAuth2Provider { store, hasher });
+    let provider = Arc::new(OAuth2Provider { store, hasher, token });
 
     let _clean_up = {
         let provider = Arc::clone(&provider);
