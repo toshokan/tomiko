@@ -14,6 +14,8 @@ enum AuthRejection {
     AccessToken(AccessTokenError),
 }
 
+impl warp::reject::Reject for AuthRejection {}
+
 impl From<AuthorizationError> for AuthRejection {
     fn from(error: AuthorizationError) -> Self {
         Self::Authorization(error)
@@ -26,6 +28,17 @@ impl From<AccessTokenError> for AuthRejection {
     }
 }
 
+async fn handle_reject(err: Rejection) -> Result<impl Reply, Rejection> {
+    match err.find::<AuthRejection>() {
+        Some(e) => {
+            let encoded = FormEncoded::encode(e);
+            let reply = warp::reply::with_status(encoded, warp::http::StatusCode::BAD_REQUEST);
+            Ok(reply)
+        }
+        _ => Err(err),
+    }
+}
+
 fn form_encode(
     value: Result<impl serde::Serialize, impl Into<AuthRejection>>,
 ) -> Result<impl Reply, Rejection> {
@@ -34,7 +47,7 @@ fn form_encode(
         .map_err(|e| warp::reject::custom::<AuthRejection>(e.into()))
 }
 
-impl warp::reject::Reject for AuthRejection {}
+
 
 #[derive(serde::Deserialize)]
 pub struct WithCredentials<T> {
@@ -163,7 +176,8 @@ impl<P: Provider + Send + Sync + 'static> Server<P> {
 
         let routes = oauth
             .and(warp::path("v1"))
-            .and(authenticate.or(token_request));
+            .and(authenticate.or(token_request))
+	    .recover(handle_reject);
         // .and(authenticate.or(token_request).or(make_client));
         // .recover(Self::handle_reject);
 

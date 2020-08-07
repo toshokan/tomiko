@@ -81,7 +81,7 @@ pub struct RedirectUri(pub String); // TODO
 )]
 pub struct ClientSecret(pub String); // TODO
 
-#[derive(Debug)]
+#[derive(Debug, Eq, PartialEq)]f
 pub struct HashedClientSecret(pub String);
 
 impl HashedClientSecret {

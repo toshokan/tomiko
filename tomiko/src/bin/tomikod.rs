@@ -30,14 +30,38 @@ impl OAuth2Provider {
 
         Ok(())
     }
+
+    async fn check_client_authentication(
+        &self,
+        cred: &ClientCredentials,
+    ) -> Result<(), AccessTokenError> {
+        let client = self.store.get_client(&cred.client_id).await;
+        let result = client.map(|c| {
+            self.hasher
+                .verify(&cred.client_secret, &c.secret)
+                .expect("Failed to hash")
+        });
+        if let Ok(true) = result {
+            Ok(())
+        } else {
+            Err(AccessTokenError {
+                kind: AccessTokenErrorKind::InvalidClient,
+                description: Some("Bad authentication".to_string()),
+                uri: None,
+            })
+        }
+    }
 }
 
 use tomiko_auth::Provider;
 
 #[async_trait]
 impl Provider for OAuth2Provider {
-    async fn authorization_request(&self, req: AuthorizationRequest) -> Result<AuthorizationResponse, AuthorizationError> {
-	self.validate_client(&req.client_id, &req.redirect_uri, &req.state)
+    async fn authorization_request(
+        &self,
+        req: AuthorizationRequest,
+    ) -> Result<AuthorizationResponse, AuthorizationError> {
+        self.validate_client(&req.client_id, &req.redirect_uri, &req.state)
             .await?;
         let state = req.state.clone();
 
@@ -51,9 +75,9 @@ impl Provider for OAuth2Provider {
             scope: Some(req.scope), // TODO
         };
 
-	let expiry = std::time::SystemTime::now()
-	    .checked_add(std::time::Duration::from_secs(10 * 60))
-	    .unwrap();
+        let expiry = std::time::SystemTime::now()
+            .checked_add(std::time::Duration::from_secs(10 * 60))
+            .unwrap();
 
         let data = self
             .store
@@ -65,10 +89,15 @@ impl Provider for OAuth2Provider {
         Ok(response)
     }
 
-    async fn access_token_request(&self, _credentials: ClientCredentials, _req: TokenRequest) -> Result<AccessTokenResponse, AccessTokenError> {
-	unimplemented!();
-	
-	// let data = self
+    async fn access_token_request(
+        &self,
+        credentials: ClientCredentials,
+        _req: TokenRequest,
+    ) -> Result<AccessTokenResponse, AccessTokenError> {
+        self.check_client_authentication(&credentials).await?;
+
+        unimplemented!();
+        // let data = self
         //     .store
         //     .get_authcode_data(&client_id, &req.code)
         //     .await
