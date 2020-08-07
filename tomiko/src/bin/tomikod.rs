@@ -152,6 +152,7 @@ async fn tomikod(config: Config) -> Option<()> {
 pub struct Config {
     database_url: String,
     hash_secret: String,
+    jwt_private_key_file: String,
 }
 
 impl Config {
@@ -159,6 +160,8 @@ impl Config {
         Self {
             database_url: std::env::var("DATABASE_URL").expect("Supply DATABASE_URL"),
             hash_secret: std::env::var("HASH_SECRET").expect("Supply HASH_SECRET"),
+            jwt_private_key_file: std::env::var("JWT_PRIVATE_KEY_FILE")
+                .expect("Supply JWT_PRIVATE_KEY_FILE"),
         }
     }
 }
