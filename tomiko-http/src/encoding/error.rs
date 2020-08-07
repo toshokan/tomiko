@@ -1,5 +1,5 @@
-use tomiko_auth::{AuthorizationError, AccessTokenError};
 use crate::encoding::reply::FormEncoded;
+use tomiko_auth::{AccessTokenError, AuthorizationError};
 use warp::{Rejection, Reply};
 
 #[derive(Debug, Clone, serde::Serialize)]

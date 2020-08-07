@@ -1,8 +1,8 @@
 #![allow(clippy::toplevel_ref_arg)]
 
+use tomiko_auth::Store;
 use tomiko_core::models::{AuthCodeData, Client, RedirectRecord};
 use tomiko_core::types::{AuthCode, ClientId, HashedClientSecret, RedirectUri, Scope};
-use tomiko_auth::Store;
 
 use sqlx::sqlite::SqlitePool;
 use std::time::SystemTime;

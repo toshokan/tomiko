@@ -19,5 +19,4 @@ pub struct AuthCodeData {
 pub struct RedirectRecord {
     pub client_id: ClientId,
     pub uri: RedirectUri,
-
 }

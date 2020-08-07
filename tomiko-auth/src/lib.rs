@@ -183,7 +183,7 @@ pub trait Provider {
     ) -> Result<AuthorizationResponse, AuthorizationError>;
     async fn access_token_request(
         &self,
-	credentials: ClientCredentials,
+        credentials: ClientCredentials,
         req: TokenRequest,
     ) -> Result<AccessTokenResponse, AccessTokenError>;
 }

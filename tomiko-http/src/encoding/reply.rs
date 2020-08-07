@@ -1,6 +1,6 @@
-use warp::reply::{Response, Reply};
-use warp::Rejection;
 use crate::encoding::error::AuthRejection;
+use warp::reply::{Reply, Response};
+use warp::Rejection;
 
 pub struct FormEncoded {
     inner: Result<String, ()>,
@@ -15,8 +15,8 @@ impl FormEncoded {
 
 impl warp::reply::Reply for FormEncoded {
     fn into_response(self) -> Response {
-	use warp::http::Response;
-	
+        use warp::http::Response;
+
         match self.inner {
             Ok(body) => {
                 let mut response = Response::new(body.into());
@@ -26,14 +26,12 @@ impl warp::reply::Reply for FormEncoded {
                         "application/x-www-form-urlencoded",
                     ),
                 );
-		response
-            },
-	    Err(_) => warp::http::StatusCode::INTERNAL_SERVER_ERROR.into_response()
+                response
+            }
+            Err(_) => warp::http::StatusCode::INTERNAL_SERVER_ERROR.into_response(),
         }
     }
 }
-
-
 
 pub fn form_encode(
     value: Result<impl serde::Serialize, impl Into<AuthRejection>>,
