@@ -7,6 +7,7 @@ use tomiko_core::types::{AuthCode, ClientId, RedirectUri};
 use tomiko_util::{hash::HashingService, random::FromRandom};
 
 use async_trait::async_trait;
+use std::sync::Arc;
 use tomiko_db::DbStore;
 use tomiko_http::server::Server;
 
@@ -52,6 +53,19 @@ impl OAuth2Provider {
             description: Some("Bad authentication".to_string()),
             uri: None,
         })
+    }
+
+    async fn start_clean_up_worker(&self) -> Result<(), ()> {
+        use std::time::Duration;
+        use tokio::{stream::StreamExt, time::interval};
+
+        let mut interval = interval(Duration::from_secs(15));
+
+        while let Some(_x) = interval.next().await {
+            self.store.clean_up().await?
+        }
+
+        Ok(())
     }
 }
 
@@ -113,7 +127,7 @@ impl Provider for OAuth2Provider {
                 scope: data.scope,
             })
         } else {
-	    Err(AccessTokenErrorKind::InvalidGrant.into())
+            Err(AccessTokenErrorKind::InvalidGrant.into())
         }
     }
 }
@@ -122,9 +136,14 @@ async fn tomikod(config: Config) -> Option<()> {
     let store = DbStore::acquire(&config.database_url).await.ok()?;
     let hasher = HashingService::with_secret_key(config.hash_secret);
 
-    let driver = OAuth2Provider { store, hasher };
+    let provider = Arc::new(OAuth2Provider { store, hasher });
 
-    let server = Server::new(driver);
+    let _clean_up = {
+        let provider = Arc::clone(&provider);
+        tokio::spawn(async move { provider.start_clean_up_worker().await });
+    };
+
+    let server = Server::new(provider);
     server.serve().await;
     Some(())
 }

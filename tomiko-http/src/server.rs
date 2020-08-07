@@ -24,9 +24,9 @@ fn body_with_credentials<T: serde::de::DeserializeOwned + Send>(
 }
 
 impl<P: Provider + Send + Sync + 'static> Server<P> {
-    pub fn new(provider: P) -> Self {
+    pub fn new(provider: Arc<P>) -> Self {
         Self {
-            provider: Arc::new(provider),
+            provider: Arc::clone(&provider),
         }
     }
 
