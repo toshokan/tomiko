@@ -2,31 +2,33 @@ pub mod server;
 
 use warp::reply::Response;
 
-use std::marker::PhantomData;
-
-struct FormEncoded<T> {
-    body: String,
-    p: PhantomData<T>,
+struct FormEncoded {
+    inner: Result<String, ()>,
 }
 
-impl<T: serde::Serialize> FormEncoded<T> {
-    fn encode(t: T) -> Result<Self, serde_urlencoded::ser::Error> {
-        let body = serde_urlencoded::to_string(t)?;
-        Ok(Self {
-            body,
-            p: PhantomData,
-        })
+impl FormEncoded {
+    fn encode(body: impl serde::Serialize) -> Self {
+        let inner = serde_urlencoded::to_string(body).map_err(|_| ());
+        Self { inner }
     }
 }
 
-impl<T: Send> warp::reply::Reply for FormEncoded<T> {
+impl warp::reply::Reply for FormEncoded {
     fn into_response(self) -> Response {
-        let body = warp::hyper::Body::from(self.body);
-        let mut request = warp::http::Response::new(body);
-        request.headers_mut().insert(
-            "content-type",
-            warp::hyper::header::HeaderValue::from_static("application/x-www-form-urlencoded"),
-        );
-        request
+	use warp::http::Response;
+	
+        match self.inner {
+            Ok(body) => {
+                let mut response = Response::new(body.into());
+                response.headers_mut().insert(
+                    "content-type",
+                    warp::hyper::header::HeaderValue::from_static(
+                        "application/x-www-form-urlencoded",
+                    ),
+                );
+		response
+            },
+	    Err(_) => warp::http::StatusCode::INTERNAL_SERVER_ERROR.into_response()
+        }
     }
 }
