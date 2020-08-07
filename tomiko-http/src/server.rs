@@ -1,81 +1,10 @@
-use super::FormEncoded;
-use tomiko_auth::{AccessTokenError, AuthorizationError, ClientCredentials, Provider};
-use tomiko_core::types::{ClientId, ClientSecret};
+use tomiko_auth::{ClientCredentials, Provider};
 
 use std::sync::Arc;
-use warp::{Filter, Rejection, Reply};
+use warp::{Filter, Rejection};
 
+use crate::encoding::{error::handle_reject, reply::form_encode, WithCredentials};
 use http_basic_auth::Credential as BasicCredentials;
-
-#[derive(Debug, Clone, serde::Serialize)]
-#[serde(untagged)]
-enum AuthRejection {
-    Authorization(AuthorizationError),
-    AccessToken(AccessTokenError),
-}
-
-impl warp::reject::Reject for AuthRejection {}
-
-impl From<AuthorizationError> for AuthRejection {
-    fn from(error: AuthorizationError) -> Self {
-        Self::Authorization(error)
-    }
-}
-
-impl From<AccessTokenError> for AuthRejection {
-    fn from(error: AccessTokenError) -> Self {
-        Self::AccessToken(error)
-    }
-}
-
-async fn handle_reject(err: Rejection) -> Result<impl Reply, Rejection> {
-    match err.find::<AuthRejection>() {
-        Some(e) => {
-            let encoded = FormEncoded::encode(e);
-            let reply = warp::reply::with_status(encoded, warp::http::StatusCode::BAD_REQUEST);
-            Ok(reply)
-        }
-        _ => Err(err),
-    }
-}
-
-fn form_encode(
-    value: Result<impl serde::Serialize, impl Into<AuthRejection>>,
-) -> Result<impl Reply, Rejection> {
-    value
-        .map(|v| FormEncoded::encode(v))
-        .map_err(|e| warp::reject::custom::<AuthRejection>(e.into()))
-}
-
-
-
-#[derive(serde::Deserialize)]
-pub struct WithCredentials<T> {
-    #[serde(flatten)]
-    credentials: ClientCredentials,
-    #[serde(flatten)]
-    body: T,
-}
-
-impl<T> From<(BasicCredentials, T)> for WithCredentials<T> {
-    fn from((credentials, value): (BasicCredentials, T)) -> Self {
-        let credentials = ClientCredentials {
-            client_id: ClientId(credentials.user_id),
-            client_secret: ClientSecret(credentials.password),
-        };
-
-        Self::join(credentials, value)
-    }
-}
-
-impl<T> WithCredentials<T> {
-    pub fn join(credentials: ClientCredentials, body: T) -> Self {
-        Self { credentials, body }
-    }
-    pub fn split(self) -> (ClientCredentials, T) {
-        (self.credentials, self.body)
-    }
-}
 
 #[derive(Debug)]
 pub struct Server<P> {
@@ -128,77 +57,13 @@ impl<P: Provider + Send + Sync + 'static> Server<P> {
                 form_encode(result)
             });
 
-        // let next = warp::path("continue")
-        //     .and(warp::path::param())
-        //     .and(warp::path::end())
-        //     .and(with_state.clone())
-        //     .and(self.with_driver())
-        //     .and_then(
-        //         |sid: String,
-        //          state: Arc<Mutex<HashMap<String, (AuthorizationRequest, bool)>>>,
-        //          driver: Arc<T>| async move {
-        //             let (req, auth) = {
-        //                 let mut state = state.lock().unwrap();
-        //                 state.remove(&sid).unwrap()
-        //             };
-
-        //             if auth {
-        //                 Self::authenticate(&driver, req).await
-        //             } else {
-        //                 Err(warp::reject())
-        //             }
-        //         },
-        //     );
-
-        // let check = warp::post()
-        //     .and(warp::path("check_auth"))
-        //     .and(warp::body::form())
-        //     .and(with_state.clone())
-        //     .and_then(
-        //         |req: CheckAuthRequest,
-        //          state: Arc<Mutex<HashMap<String, (AuthorizationRequest, bool)>>>| async move {
-        //             let svc = CheckAuthService;
-        //             let result = svc.check_credentials(&req).await;
-        //             let mut state = state.lock().unwrap();
-        //             state.entry(req.sid.clone()).and_modify(|e| e.1 = result);
-
-        //             if result {
-        //                 let resp = warp::http::Response::builder()
-        //                     .header("Location", format!("/continue/{}", &req.sid))
-        //                     .status(307)
-        //                     .body(warp::hyper::Body::empty());
-        //                 Ok(resp)
-        //             } else {
-        //                 Err(warp::reject())
-        //             }
-        //         },
-        //     );
-
         let routes = oauth
             .and(warp::path("v1"))
             .and(authenticate.or(token_request))
-	    .recover(handle_reject);
-        // .and(authenticate.or(token_request).or(make_client));
-        // .recover(Self::handle_reject);
+            .recover(handle_reject);
 
-        // warp::serve(check.or(next).or(routes))
         warp::serve(routes).run(([127, 0, 0, 1], 8001)).await;
 
         Some(())
     }
 }
-
-// struct CheckAuthService;
-
-// #[derive(serde::Deserialize)]
-// struct CheckAuthRequest {
-//     username: String,
-//     password: String,
-//     sid: String,
-// }
-
-// impl CheckAuthService {
-//     async fn check_credentials(&self, req: &CheckAuthRequest) -> bool {
-//         req.password == "test"
-//     }
-// }

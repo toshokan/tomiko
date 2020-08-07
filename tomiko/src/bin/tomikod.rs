@@ -2,7 +2,7 @@ use tomiko_auth::{
     AccessTokenError, AccessTokenErrorKind, AccessTokenResponse, AuthorizationError,
     AuthorizationRequest, AuthorizationResponse, ClientCredentials, Store, TokenRequest,
 };
-use tomiko_core::models::{AuthCodeData, Client};
+use tomiko_core::models::AuthCodeData;
 use tomiko_core::types::{AuthCode, ClientId, RedirectUri};
 use tomiko_util::{hash::HashingService, random::FromRandom};
 
