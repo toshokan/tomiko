@@ -8,7 +8,7 @@ use tomiko_core::types::{
 
 #[derive(Debug)]
 #[cfg_attr(feature = "serde-traits", derive(serde::Deserialize))]
-pub struct AuthorizationCodeGrantRequest {
+pub struct AuthorizationCodeGrantAuthorizationRequest {
     pub client_id: ClientId,
     pub redirect_uri: RedirectUri,
     pub scope: Scope,
@@ -17,19 +17,11 @@ pub struct AuthorizationCodeGrantRequest {
 
 #[derive(Debug)]
 #[cfg_attr(feature = "serde-traits", derive(serde::Deserialize))]
-pub struct ImplicitGrantRequest {
+pub struct ImplicitGrantAuthorizationRequest {
     client_id: ClientId,
     redirect_uri: RedirectUri,
     scope: Scope,
     state: Option<String>
-}
-
-#[derive(Debug)]
-#[cfg_attr(feature = "serde-traits", derive(serde::Deserialize))]
-pub struct ResourceOwnerPasswordCredentialsGrantRequest {
-    username: String,
-    password: String,
-    scope: Scope,
 }
 
 #[derive(Debug)]
@@ -41,24 +33,62 @@ pub enum AuthorizationRequest {
     #[cfg_attr(feature = "serde-traits",
 	       serde(rename = "code"),
     )]
-    AuthorizationCode(AuthorizationCodeGrantRequest),
+    AuthorizationCode(AuthorizationCodeGrantAuthorizationRequest),
     #[cfg_attr(feature = "serde-traits",
 	       serde(rename = "token"),
     )]
-    Implicit(ImplicitGrantRequest),
-    #[cfg_attr(feature = "serde-traits",
-	       serde(rename = "password"),
-    )]
-    ResourceOwnerPasswordCredentials(ResourceOwnerPasswordCredentialsGrantRequest)
+    Implicit(ImplicitGrantAuthorizationRequest),
 }
 
 #[derive(Debug)]
 #[cfg_attr(feature = "serde-traits", derive(serde::Deserialize))]
-pub struct TokenRequest {
+pub struct AuthenticationCodeTokenRequest {
     pub grant_type: GrantType,
     pub redirect_uri: RedirectUri,
     pub code: AuthCode,
 }
+
+#[derive(Debug)]
+#[cfg_attr(feature = "serde-traits", derive(serde::Deserialize))]
+pub struct ResourceOwnerPasswordCredentialsTokenRequest {
+    username: String,
+    password: String,
+    scope: Scope,
+}
+
+#[derive(Debug)]
+#[cfg_attr(feature = "serde-traits", derive(serde::Deserialize))]
+pub struct ClientCredentialsTokenRequest {
+    scope: Scope,
+}
+
+#[derive(Debug)]
+#[cfg_attr(feature = "serde-traits",
+	   derive(serde::Deserialize),
+	   serde(tag = "grant_type")
+)]
+pub enum TokenRequest {
+    #[cfg_attr(feature = "serde-traits",
+	       serde(rename = "authorization_code"),
+    )]
+    AuthenticationCode(AuthenticationCodeTokenRequest),
+    #[cfg_attr(feature = "serde-traits",
+	       serde(rename = "password"),
+    )]
+    ResourceOwnerPasswordCredentials(ResourceOwnerPasswordCredentialsTokenRequest),
+    #[cfg_attr(feature = "serde-traits",
+	       serde(rename = "client_credentials"),
+    )]
+    ClientCredentials(ClientCredentialsTokenRequest)
+}
+
+// #[derive(Debug)]
+// #[cfg_attr(feature = "serde-traits", derive(serde::Deserialize))]
+// pub struct TokenRequest {
+//     pub grant_type: GrantType,
+//     pub redirect_uri: RedirectUri,
+//     pub code: AuthCode,
+// }
 
 #[derive(Debug)]
 #[cfg_attr(feature = "serde-traits", derive(serde::Serialize))]
