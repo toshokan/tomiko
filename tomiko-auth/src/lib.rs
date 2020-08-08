@@ -52,16 +52,6 @@ pub enum AuthorizationRequest {
     ResourceOwnerPasswordCredentials(ResourceOwnerPasswordCredentialsGrantRequest)
 }
 
-// #[derive(Debug)]
-// #[cfg_attr(feature = "serde-traits", derive(serde::Deserialize))]
-// pub struct AuthorizationRequest {
-//     pub response_type: ResponseType,
-//     pub client_id: ClientId,
-//     pub redirect_uri: RedirectUri,
-//     pub scope: Scope,
-//     pub state: Option<String>,
-// }
-
 #[derive(Debug)]
 #[cfg_attr(feature = "serde-traits", derive(serde::Deserialize))]
 pub struct TokenRequest {
