@@ -120,27 +120,32 @@ impl Provider for OAuth2Provider {
         req: TokenRequest,
     ) -> Result<AccessTokenResponse, AccessTokenError> {
         let client = self.check_client_authentication(&credentials).await?;
+	use TokenRequest::*;
+	match req {
+	    AuthenticationCode(req) => {
+		let data = self
+		    .store
+		    .get_authcode_data(&client.id, &req.code)
+		    .await
+		    .map_err(|_| AccessTokenErrorKind::InvalidGrant)?;
 
-        let data = self
-            .store
-            .get_authcode_data(&client.id, &req.code)
-            .await
-            .map_err(|_| AccessTokenErrorKind::InvalidGrant)?;
+		if &data.redirect_uri == &req.redirect_uri {
+		    let access_token = self.token.new_token(&client);
+		    let token_type = TokenService::token_type().to_string();
 
-        if &data.redirect_uri == &req.redirect_uri {
-            let access_token = self.token.new_token(&req, &client);
-            let token_type = TokenService::token_type().to_string();
-
-            Ok(AccessTokenResponse {
-                access_token,
-                token_type,
-                refresh_token: None,
-                expires_in: None,
-                scope: data.scope,
-            })
-        } else {
-            Err(AccessTokenErrorKind::InvalidGrant.into())
-        }
+		    Ok(AccessTokenResponse {
+			access_token,
+			token_type,
+			refresh_token: None,
+			expires_in: None,
+			scope: data.scope,
+		    })
+		} else {
+		    Err(AccessTokenErrorKind::InvalidGrant.into())
+		}
+	    }
+	    _ => unimplemented!()
+	}
     }
 }
 
@@ -167,7 +172,7 @@ impl TokenService {
         "application/jwt"
     }
 
-    pub fn new_token(&self, _req: &TokenRequest, client: &Client) -> String {
+    pub fn new_token(&self, client: &Client) -> String {
         use biscuit::{jws::RegisteredHeader, ClaimsSet, RegisteredClaims, JWT, SingleOrMultiple::*};
 
         let claims = ClaimsSet::<TomikoClaims> {
