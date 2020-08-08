@@ -78,32 +78,40 @@ impl Provider for OAuth2Provider {
         &self,
         req: AuthorizationRequest,
     ) -> Result<AuthorizationResponse, AuthorizationError> {
-        self.validate_client(&req.client_id, &req.redirect_uri, &req.state)
-            .await?;
-        let state = req.state.clone();
+	use AuthorizationRequest::*;
+	
+	match req {
+	    AuthorizationCode(req) => {
+		self.validate_client(&req.client_id, &req.redirect_uri, &req.state)
+		    .await?;
+		let state = req.state.clone();
 
-        let code = AuthCode::from_random();
+		let code = AuthCode::from_random();
 
-        let data = AuthCodeData {
-            client_id: req.client_id,
-            code,
-            state: req.state,
-            redirect_uri: req.redirect_uri,
-            scope: Some(req.scope), // TODO
-        };
+		let data = AuthCodeData {
+		    client_id: req.client_id,
+		    code,
+		    state: req.state,
+		    redirect_uri: req.redirect_uri,
+		    scope: Some(req.scope), // TODO
+		};
 
-        let expiry = std::time::SystemTime::now()
-            .checked_add(std::time::Duration::from_secs(10 * 60))
-            .unwrap();
+		let expiry = std::time::SystemTime::now()
+		    .checked_add(std::time::Duration::from_secs(10 * 60))
+		    .unwrap();
 
-        let data = self
-            .store
-            .store_code(data, expiry)
-            .await
-            .map_err(|_| AuthorizationError::server_error(&state))?;
+		let data = self
+		    .store
+		    .store_code(data, expiry)
+		    .await
+		    .map_err(|_| AuthorizationError::server_error(&state))?;
 
-        let response = AuthorizationResponse::new(data.code, data.state);
-        Ok(response)
+		let response = AuthorizationResponse::new(data.code, data.state);
+		Ok(response)
+	    },
+	    _ => unimplemented!()
+	}
+        
     }
 
     async fn access_token_request(
