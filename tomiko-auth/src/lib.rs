@@ -2,8 +2,7 @@ use async_trait::async_trait;
 use std::time::SystemTime;
 use tomiko_core::models::{AuthCodeData, Client};
 use tomiko_core::types::{
-    AuthCode, ClientId, ClientSecret, GrantType, HashedClientSecret, RedirectUri, ResponseType,
-    Scope,
+    AuthCode, ClientId, ClientSecret, GrantType, HashedClientSecret, RedirectUri, Scope,
 };
 
 #[derive(Debug)]
@@ -12,7 +11,7 @@ pub struct AuthorizationCodeGrantAuthorizationRequest {
     pub client_id: ClientId,
     pub redirect_uri: RedirectUri,
     pub scope: Scope,
-    pub state: Option<String>
+    pub state: Option<String>,
 }
 
 #[derive(Debug)]
@@ -21,22 +20,19 @@ pub struct ImplicitGrantAuthorizationRequest {
     client_id: ClientId,
     redirect_uri: RedirectUri,
     scope: Scope,
-    state: Option<String>
+    state: Option<String>,
 }
 
 #[derive(Debug)]
-#[cfg_attr(feature = "serde-traits",
-	   derive(serde::Deserialize),
-	   serde(tag = "grant_type")
+#[cfg_attr(
+    feature = "serde-traits",
+    derive(serde::Deserialize),
+    serde(tag = "grant_type")
 )]
 pub enum AuthorizationRequest {
-    #[cfg_attr(feature = "serde-traits",
-	       serde(rename = "code"),
-    )]
+    #[cfg_attr(feature = "serde-traits", serde(rename = "code"))]
     AuthorizationCode(AuthorizationCodeGrantAuthorizationRequest),
-    #[cfg_attr(feature = "serde-traits",
-	       serde(rename = "token"),
-    )]
+    #[cfg_attr(feature = "serde-traits", serde(rename = "token"))]
     Implicit(ImplicitGrantAuthorizationRequest),
 }
 
@@ -63,23 +59,18 @@ pub struct ClientCredentialsTokenRequest {
 }
 
 #[derive(Debug)]
-#[cfg_attr(feature = "serde-traits",
-	   derive(serde::Deserialize),
-	   serde(tag = "grant_type")
+#[cfg_attr(
+    feature = "serde-traits",
+    derive(serde::Deserialize),
+    serde(tag = "grant_type")
 )]
 pub enum TokenRequest {
-    #[cfg_attr(feature = "serde-traits",
-	       serde(rename = "authorization_code"),
-    )]
+    #[cfg_attr(feature = "serde-traits", serde(rename = "authorization_code"))]
     AuthenticationCode(AuthenticationCodeTokenRequest),
-    #[cfg_attr(feature = "serde-traits",
-	       serde(rename = "password"),
-    )]
+    #[cfg_attr(feature = "serde-traits", serde(rename = "password"))]
     ResourceOwnerPasswordCredentials(ResourceOwnerPasswordCredentialsTokenRequest),
-    #[cfg_attr(feature = "serde-traits",
-	       serde(rename = "client_credentials"),
-    )]
-    ClientCredentials(ClientCredentialsTokenRequest)
+    #[cfg_attr(feature = "serde-traits", serde(rename = "client_credentials"))]
+    ClientCredentials(ClientCredentialsTokenRequest),
 }
 
 // #[derive(Debug)]
@@ -218,11 +209,11 @@ pub struct AccessTokenError {
 
 impl From<AccessTokenErrorKind> for AccessTokenError {
     fn from(kind: AccessTokenErrorKind) -> Self {
-	Self {
-	    kind,
-	    description: None,
-	    uri: None
-	}
+        Self {
+            kind,
+            description: None,
+            uri: None,
+        }
     }
 }
 
@@ -263,5 +254,3 @@ pub trait Provider {
         req: TokenRequest,
     ) -> Result<AccessTokenResponse, AccessTokenError>;
 }
-
-
