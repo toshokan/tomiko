@@ -8,13 +8,59 @@ use tomiko_core::types::{
 
 #[derive(Debug)]
 #[cfg_attr(feature = "serde-traits", derive(serde::Deserialize))]
-pub struct AuthorizationRequest {
-    pub response_type: ResponseType,
+pub struct AuthorizationCodeGrantRequest {
     pub client_id: ClientId,
     pub redirect_uri: RedirectUri,
     pub scope: Scope,
-    pub state: Option<String>,
+    pub state: Option<String>
 }
+
+#[derive(Debug)]
+#[cfg_attr(feature = "serde-traits", derive(serde::Deserialize))]
+pub struct ImplicitGrantRequest {
+    client_id: ClientId,
+    redirect_uri: RedirectUri,
+    scope: Scope,
+    state: Option<String>
+}
+
+#[derive(Debug)]
+#[cfg_attr(feature = "serde-traits", derive(serde::Deserialize))]
+pub struct ResourceOwnerPasswordCredentialsGrantRequest {
+    username: String,
+    password: String,
+    scope: Scope,
+}
+
+#[derive(Debug)]
+#[cfg_attr(feature = "serde-traits",
+	   derive(serde::Deserialize),
+	   serde(tag = "grant_type")
+)]
+pub enum AuthorizationRequest {
+    #[cfg_attr(feature = "serde-traits",
+	       serde(rename = "code"),
+    )]
+    AuthorizationCode(AuthorizationCodeGrantRequest),
+    #[cfg_attr(feature = "serde-traits",
+	       serde(rename = "token"),
+    )]
+    Implicit(ImplicitGrantRequest),
+    #[cfg_attr(feature = "serde-traits",
+	       serde(rename = "password"),
+    )]
+    ResourceOwnerPasswordCredentials(ResourceOwnerPasswordCredentialsGrantRequest)
+}
+
+// #[derive(Debug)]
+// #[cfg_attr(feature = "serde-traits", derive(serde::Deserialize))]
+// pub struct AuthorizationRequest {
+//     pub response_type: ResponseType,
+//     pub client_id: ClientId,
+//     pub redirect_uri: RedirectUri,
+//     pub scope: Scope,
+//     pub state: Option<String>,
+// }
 
 #[derive(Debug)]
 #[cfg_attr(feature = "serde-traits", derive(serde::Deserialize))]
@@ -197,3 +243,5 @@ pub trait Provider {
         req: TokenRequest,
     ) -> Result<AccessTokenResponse, AccessTokenError>;
 }
+
+
