@@ -10,6 +10,7 @@ use async_trait::async_trait;
 use std::sync::Arc;
 use tomiko_db::DbStore;
 use tomiko_http::server::Server;
+use jsonwebtoken::EncodingKey;
 
 #[derive(Debug)]
 struct OAuth2Provider {
@@ -150,7 +151,7 @@ impl Provider for OAuth2Provider {
 }
 
 struct TokenService {
-    secret: biscuit::jws::Secret,
+    secret: EncodingKey
 }
 
 impl std::fmt::Debug for TokenService {
@@ -161,10 +162,16 @@ impl std::fmt::Debug for TokenService {
 
 impl TokenService {
     pub fn new(secret_path: &str) -> Self {
-        use biscuit::jws::Secret;
-        let secret =
-            Secret::ecdsa_keypair_from_file(biscuit::jwa::SignatureAlgorithm::ES256, secret_path)
-                .expect("Failed to load secret key");
+	use std::io::Read;
+	
+	let mut contents = Vec::new();
+	std::fs::File::open(&secret_path)
+	    .expect("Failed to open secret")
+	    .read_to_end(&mut contents)
+	    .expect("Failed to read secret");
+	let secret = EncodingKey::from_ec_pem(&contents)
+	    .expect("Failed to parse secret");
+	
         Self { secret }
     }
 
@@ -173,30 +180,20 @@ impl TokenService {
     }
 
     pub fn new_token(&self, client: &Client) -> String {
-        use biscuit::{jws::RegisteredHeader, ClaimsSet, RegisteredClaims, JWT, SingleOrMultiple::*};
+	use jsonwebtoken::{encode, Header, Algorithm};
 
-        let claims = ClaimsSet::<TomikoClaims> {
-            registered: RegisteredClaims {
-                issuer: Some("tomiko".to_string()),
-                audience: Some(Single(client.id.0.to_string())),
-                ..Default::default()
-            },
-            private: TomikoClaims{},
-        };
-        let token = JWT::new_decoded(
-            From::from(RegisteredHeader {
-                algorithm: biscuit::jwa::SignatureAlgorithm::ES256,
-                ..Default::default()
-            }),
-            claims,
-        );
+	let claims = TomikoClaims {
+	    sub: client.id.0.to_string(),
+	    scope: "test-scope".to_string()
+	};
 
-        let encoded = token
-            .into_encoded(&self.secret)
-            .expect("Failed to encode")
-            .unwrap_encoded()
-            .to_string();
-        encoded
+	let header = Header {
+	    alg: Algorithm::ES256,
+	    ..Default::default()
+	};
+	
+	encode(&header, &claims, &self.secret)
+	    .expect("Failed to encode token claims")
     }
 }
 
@@ -226,7 +223,8 @@ pub struct Config {
 
 #[derive(Default, serde::Serialize, serde::Deserialize)]
 struct TomikoClaims {
-    
+    sub: String,
+    scope: String
 }
 
 impl Config {
