@@ -3,7 +3,7 @@ use tomiko_auth::{
     AuthorizationRequest, AuthorizationResponse, ClientCredentials, Store, TokenRequest,
 };
 use tomiko_core::models::{AuthCodeData, Client};
-use tomiko_core::types::{AuthCode, ClientId, RedirectUri};
+use tomiko_core::types::{AuthCode, ClientId, RedirectUri, Scope};
 use tomiko_util::{hash::HashingService, random::FromRandom};
 
 use async_trait::async_trait;
@@ -191,12 +191,26 @@ impl TokenService {
         "application/jwt"
     }
 
+    fn current_timestamp() -> std::time::Duration {
+	use std::time::SystemTime;
+	let now = SystemTime::now();
+	
+	now.duration_since(SystemTime::UNIX_EPOCH)
+	    .expect("Unix Epoch is in the past.")
+    }
+
     pub fn new_token(&self, client: &Client) -> String {
 	use jsonwebtoken::{encode, Header, Algorithm};
 
+	let time_now = Self::current_timestamp().as_secs();
+	let expiry = time_now + 3600;
+
 	let claims = TomikoClaims {
 	    sub: client.id.0.to_string(),
-	    scope: "test-scope".to_string()
+	    scope: Scope::from_delimited_parts("test-scope"),
+	    iat: time_now,
+	    exp: expiry,
+	    iss: "tomiko".to_string()
 	};
 
 	let header = Header {
@@ -233,10 +247,13 @@ pub struct Config {
     jwt_private_key_file: String,
 }
 
-#[derive(Default, serde::Serialize, serde::Deserialize)]
+#[derive(serde::Serialize, serde::Deserialize)]
 struct TomikoClaims {
     sub: String,
-    scope: String
+    iss: String,
+    iat: u64,
+    exp: u64,
+    scope: Scope
 }
 
 impl Config {
