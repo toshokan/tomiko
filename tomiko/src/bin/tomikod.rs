@@ -144,7 +144,19 @@ impl Provider for OAuth2Provider {
 		} else {
 		    Err(AccessTokenErrorKind::InvalidGrant.into())
 		}
-	    }
+	    },
+	    ClientCredentials(req) => {
+		let access_token = self.token.new_token(&client);
+		let token_type = TokenService::token_type().to_string();
+
+		Ok(AccessTokenResponse {
+		    access_token,
+		    token_type,
+		    refresh_token: None,
+		    expires_in: None,
+		    scope: Some(req.scope),
+		})
+	    },
 	    _ => unimplemented!()
 	}
     }

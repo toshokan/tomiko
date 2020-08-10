@@ -2,7 +2,7 @@ use async_trait::async_trait;
 use std::time::SystemTime;
 use tomiko_core::models::{AuthCodeData, Client};
 use tomiko_core::types::{
-    AuthCode, ClientId, ClientSecret, GrantType, HashedClientSecret, RedirectUri, Scope,
+    AuthCode, ClientId, ClientSecret, HashedClientSecret, RedirectUri, Scope,
 };
 
 #[derive(Debug)]
@@ -54,7 +54,7 @@ pub struct ResourceOwnerPasswordCredentialsTokenRequest {
 #[derive(Debug)]
 #[cfg_attr(feature = "serde-traits", derive(serde::Deserialize))]
 pub struct ClientCredentialsTokenRequest {
-    scope: Scope,
+    pub scope: Scope,
 }
 
 #[derive(Debug)]
