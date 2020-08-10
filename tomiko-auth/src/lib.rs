@@ -27,7 +27,7 @@ pub struct ImplicitGrantAuthorizationRequest {
 #[cfg_attr(
     feature = "serde-traits",
     derive(serde::Deserialize),
-    serde(tag = "grant_type")
+    serde(tag = "response_type")
 )]
 pub enum AuthorizationRequest {
     #[cfg_attr(feature = "serde-traits", serde(rename = "code"))]
@@ -39,7 +39,6 @@ pub enum AuthorizationRequest {
 #[derive(Debug)]
 #[cfg_attr(feature = "serde-traits", derive(serde::Deserialize))]
 pub struct AuthenticationCodeTokenRequest {
-    pub grant_type: GrantType,
     pub redirect_uri: RedirectUri,
     pub code: AuthCode,
 }
@@ -254,3 +253,5 @@ pub trait Provider {
         req: TokenRequest,
     ) -> Result<AccessTokenResponse, AccessTokenError>;
 }
+
+
