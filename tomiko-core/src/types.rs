@@ -11,10 +11,14 @@ pub enum GrantType {
     AuthorizationCode,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Scope(Vec<String>);
 
 impl Scope {
+    pub fn from_parts(parts: Vec<String>) -> Self {
+	Self(parts)
+    }
+    
     pub fn from_delimited_parts(parts: &str) -> Self {
         let parts = parts.split(' ').map(ToString::to_string).collect();
         Self(parts)
@@ -22,6 +26,10 @@ impl Scope {
 
     pub fn as_joined(&self) -> String {
         self.0.join(" ")
+    }
+
+    pub fn as_parts(&self) -> Vec<String> {
+	self.0.iter().cloned().collect()
     }
 }
 

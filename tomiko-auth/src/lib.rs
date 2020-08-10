@@ -239,6 +239,7 @@ pub trait Store {
         code: &AuthCode,
     ) -> Result<AuthCodeData, ()>;
     async fn clean_up(&self) -> Result<(), ()>;
+    async fn trim_client_scopes(&self, client_id: &ClientId, scope: &Scope) -> Result<Scope, ()>;
 }
 
 #[async_trait]

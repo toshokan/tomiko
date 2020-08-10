@@ -131,7 +131,7 @@ impl Provider for OAuth2Provider {
 		    .map_err(|_| AccessTokenErrorKind::InvalidGrant)?;
 
 		if &data.redirect_uri == &req.redirect_uri {
-		    let access_token = self.token.new_token(&client);
+		    let access_token = self.token.new_token(&client, data.scope.as_ref());
 		    let token_type = TokenService::token_type().to_string();
 
 		    Ok(AccessTokenResponse {
@@ -146,7 +146,10 @@ impl Provider for OAuth2Provider {
 		}
 	    },
 	    ClientCredentials(req) => {
-		let access_token = self.token.new_token(&client);
+		let scope = self.store.trim_client_scopes(&client.id, &req.scope)
+		    .await.expect("Trim scopes issue");
+		
+		let access_token = self.token.new_token(&client, Some(&scope));
 		let token_type = TokenService::token_type().to_string();
 
 		Ok(AccessTokenResponse {
@@ -154,7 +157,7 @@ impl Provider for OAuth2Provider {
 		    token_type,
 		    refresh_token: None,
 		    expires_in: None,
-		    scope: Some(req.scope),
+		    scope: Some(scope),
 		})
 	    },
 	    _ => unimplemented!()
@@ -199,7 +202,7 @@ impl TokenService {
 	    .expect("Unix Epoch is in the past.")
     }
 
-    pub fn new_token(&self, client: &Client) -> String {
+    pub fn new_token(&self, client: &Client, scope: Option<&Scope>) -> String {
 	use jsonwebtoken::{encode, Header, Algorithm};
 
 	let time_now = Self::current_timestamp().as_secs();
@@ -207,7 +210,7 @@ impl TokenService {
 
 	let claims = TomikoClaims {
 	    sub: client.id.0.to_string(),
-	    scope: Scope::from_delimited_parts("test-scope"),
+	    scope: scope.cloned().unwrap_or(Scope::from_delimited_parts("")),
 	    iat: time_now,
 	    exp: expiry,
 	    iss: "tomiko".to_string()

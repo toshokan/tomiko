@@ -145,4 +145,21 @@ impl Store for DbStore {
             .map_err(|_| ())
             .map(|_| ())
     }
+
+    async fn trim_client_scopes(&self, client_id: &ClientId, scope: &Scope) -> Result<Scope, ()> {
+	use std::collections::HashSet;
+	use std::iter::FromIterator;
+	
+	let parts: HashSet<String> = HashSet::from_iter(scope.as_parts());
+	let mut results = sqlx::query!("SELECT scope FROM client_scopes WHERE client_id = ?",
+		     client_id.0,
+	)
+	    .fetch_all(&self.pool)
+	    .await
+	    .map_err(|_| ())?;
+	let scopes: HashSet<String> = HashSet::from_iter(results.drain(..).map(|r| r.scope));
+	let common: Vec<String> = parts.intersection(&scopes).cloned().collect();
+	
+	Ok(Scope::from_parts(common))
+    }
 }
