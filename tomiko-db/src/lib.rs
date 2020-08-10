@@ -123,7 +123,7 @@ impl Store for DbStore {
             code: AuthCode(r.code),
             state: r.state,
             redirect_uri: RedirectUri(r.uri),
-            scope: r.scope.map(Scope::from_delimited_parts),
+            scope: r.scope.map(|s| Scope::from_delimited_parts(&s))
         });
 
         result.ok_or(())
