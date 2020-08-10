@@ -15,7 +15,7 @@ pub enum GrantType {
 pub struct Scope(Vec<String>);
 
 impl Scope {
-    pub fn from_delimited_parts(parts: String) -> Self {
+    pub fn from_delimited_parts(parts: &str) -> Self {
         let parts = parts.split(' ').map(ToString::to_string).collect();
         Self(parts)
     }
@@ -32,7 +32,7 @@ impl<'de> Deserialize<'de> for Scope {
         D: Deserializer<'de>,
     {
         let parts = String::deserialize(deserializer)?;
-        Ok(Self::from_delimited_parts(parts))
+        Ok(Self::from_delimited_parts(&parts))
     }
 }
 
