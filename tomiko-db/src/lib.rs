@@ -82,7 +82,7 @@ impl Store for DbStore {
                 id: ClientId(r.client_id),
                 secret: HashedClientSecret(r.secret_hash),
             });
-	Ok(result)
+        Ok(result)
     }
 
     async fn put_client(
@@ -99,10 +99,11 @@ impl Store for DbStore {
         .await
         .map_err(|_| ())?;
 
-        let client = self.get_client(&client_id)
-	    .await?
+        let client = self
+            .get_client(&client_id)
+            .await?
             .expect("Client disappeared");
-	Ok(client)
+        Ok(client)
     }
 
     async fn get_authcode_data(
@@ -123,7 +124,7 @@ impl Store for DbStore {
             code: AuthCode(r.code),
             state: r.state,
             redirect_uri: RedirectUri(r.uri),
-            scope: r.scope.map(|s| Scope::from_delimited_parts(&s))
+            scope: r.scope.map(|s| Scope::from_delimited_parts(&s)),
         });
 
         result.ok_or(())
@@ -147,19 +148,25 @@ impl Store for DbStore {
     }
 
     async fn trim_client_scopes(&self, client_id: &ClientId, scope: &Scope) -> Result<Scope, ()> {
-	use std::collections::HashSet;
-	use std::iter::FromIterator;
+        use std::collections::HashSet;
+        use std::iter::FromIterator;
 	
-	let parts: HashSet<String> = HashSet::from_iter(scope.as_parts());
-	let mut results = sqlx::query!("SELECT scope FROM client_scopes WHERE client_id = ?",
-		     client_id.0,
-	)
-	    .fetch_all(&self.pool)
-	    .await
+        let mut results = sqlx::query!(
+            "SELECT scope FROM client_scopes WHERE client_id = ?",
+            client_id.0
+        )
+        .fetch_all(&self.pool)
+            .await
 	    .map_err(|_| ())?;
-	let scopes: HashSet<String> = HashSet::from_iter(results.drain(..).map(|r| r.scope));
-	let common: Vec<String> = parts.intersection(&scopes).cloned().collect();
 	
-	Ok(Scope::from_parts(common))
+	let results = results.drain(..).map(move |r| r.scope);
+
+        let allowed_scopes: HashSet<String> = HashSet::from_iter(results);
+	
+	let parts = scope.as_parts().drain(..).filter(|p| {
+	    allowed_scopes.contains(p)
+	}).collect();
+	
+	Ok(Scope::from_parts(parts))
     }
 }
