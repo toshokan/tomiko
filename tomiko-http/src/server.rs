@@ -41,19 +41,20 @@ impl<P: Provider + Send + Sync + 'static> Server<P> {
             .and(warp::filters::query::query())
             .and_then(|provider: Arc<P>, req| async move {
 		use tomiko_auth::{MaybeChallenge::*, ChallengeExt};
+		use warp::reply::Reply;
 		
 		let result = provider.authorization_request(req).await;
 		match result.transpose() {
 		    Challenge(_) => {
-			unimplemented!()
+			Ok(warp::http::Response::builder()
+			    .header("Location", "http://localhost:8002/login.html?sid=test123")
+			    .status(307)
+			    .body(warp::hyper::Body::empty())
+			    .unwrap())
 		    },
 		    Accept(result) => form_encode(result)
+			.map(|r| r.into_response())
 		}
-		
-                // warp::http::Response::builder()
-                //     .header("Location", "http://localhost:8002/login.html?sid=test123")
-                //     .status(307)
-                //     .body(warp::hyper::Body::empty())
             });
 
         let token_request = warp::path("token")
