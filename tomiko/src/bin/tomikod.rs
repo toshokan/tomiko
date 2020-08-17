@@ -71,14 +71,14 @@ impl OAuth2Provider {
     }
 }
 
-use tomiko_auth::Provider;
+use tomiko_auth::{MaybeChallenge::{self, *}, Provider};
 
 #[async_trait]
 impl Provider for OAuth2Provider {
     async fn authorization_request(
         &self,
         req: AuthorizationRequest,
-    ) -> Result<AuthorizationResponse, AuthorizationError> {
+    ) -> Result<MaybeChallenge<AuthorizationResponse>, AuthorizationError> {
 	use AuthorizationRequest::*;
 	
 	match req {
@@ -108,7 +108,7 @@ impl Provider for OAuth2Provider {
 		    .map_err(|_| AuthorizationError::server_error(&state))?;
 
 		let response = AuthorizationResponse::new(data.code, data.state);
-		Ok(response)
+		Ok(Accept(response))
 	    },
 	    _ => unimplemented!()
 	}

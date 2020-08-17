@@ -223,6 +223,33 @@ pub struct ClientCredentials {
     pub client_secret: ClientSecret,
 }
 
+#[derive(Debug)]
+#[cfg_attr(feature = "serde-traits", derive(serde::Serialize))]
+pub struct Challenge {
+    id: String
+}
+
+pub enum MaybeChallenge<T> {
+    Challenge(Challenge),
+    Accept(T)
+}
+
+pub trait ChallengeExt<T, E> {
+    fn transpose(self) -> MaybeChallenge<Result<T, E>>;
+}
+
+impl<T, E> ChallengeExt<T, E> for Result<MaybeChallenge<T>, E> {
+    fn transpose(self) -> MaybeChallenge<Result<T, E>> {
+	use MaybeChallenge::*;
+	
+	match self {
+	    Ok(Challenge(c)) => Challenge(c),
+	    Ok(Accept(t)) => Accept(Ok(t)),
+	    Err(e) => Accept(Err(e))
+	}
+    }
+}
+
 #[async_trait]
 pub trait Store {
     async fn check_client_uri(&self, client_id: &ClientId, uri: &RedirectUri) -> Result<(), ()>;
@@ -247,7 +274,7 @@ pub trait Provider {
     async fn authorization_request(
         &self,
         req: AuthorizationRequest,
-    ) -> Result<AuthorizationResponse, AuthorizationError>;
+    ) -> Result<MaybeChallenge<AuthorizationResponse>, AuthorizationError>;
     async fn access_token_request(
         &self,
         credentials: ClientCredentials,
