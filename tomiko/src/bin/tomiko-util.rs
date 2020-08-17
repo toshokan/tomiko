@@ -21,6 +21,8 @@ enum SubCommand {
     DeleteClient(DeleteClient),
     AddClientUri(AddClientUri),
     DeleteClientUri(DeleteClientUri),
+    AddClientScope(AddClientScope),
+    DeleteClientScope(DeleteClientScope)
 }
 
 #[derive(Clap)]
@@ -51,6 +53,22 @@ struct DeleteClientUri {
     id: String,
     #[clap(short, long)]
     uri: String,
+}
+
+#[derive(Clap)]
+struct AddClientScope {
+    #[clap(short, long)]
+    id: String,
+    #[clap(short, long)]
+    scope: String
+}
+
+#[derive(Clap)]
+struct DeleteClientScope {
+    #[clap(short, long)]
+    id: String,
+    #[clap(short, long)]
+    scope: String
 }
 
 async fn get_database(uri: &str) -> SqlitePool {
@@ -125,6 +143,36 @@ async fn delete_client_uri(c: &DeleteClientUri, opts: &Options) {
     println!("OK!")
 }
 
+async fn add_client_scope(c: &AddClientScope, opts: &Options) {
+    let db = get_database(&opts.database_url).await;
+
+    let scopes = c.scope.split(" ");
+
+    for scope in scopes {
+	sqlx::query!("INSERT INTO client_scopes(client_id, scope) VALUES(?, ?)", c.id, scope)
+            .execute(&db)
+            .await
+            .expect("Failed to add scope");	
+    }
+
+    println!("OK!")
+}
+
+async fn delete_client_scope(c: &DeleteClientScope, opts: &Options) {
+    let db = get_database(&opts.database_url).await;
+
+    let scopes = c.scope.split(" ");
+
+    for scope in scopes {
+	sqlx::query!("DELETE FROM client_scopes WHERE client_id = ? AND scope = ?", c.id, scope)
+            .execute(&db)
+            .await
+            .expect("Failed to delete scope");	
+    }
+
+    println!("OK!")
+}
+
 #[tokio::main]
 async fn main() {
     dotenv::dotenv().ok();
@@ -137,5 +185,7 @@ async fn main() {
         DeleteClient(c) => delete_client(c, &opts).await,
         AddClientUri(c) => add_client_uri(c, &opts).await,
         DeleteClientUri(c) => delete_client_uri(c, &opts).await,
+	AddClientScope(c) => add_client_scope(c, &opts).await,
+        DeleteClientScope(c) => delete_client_scope(c, &opts).await,
     };
 }
