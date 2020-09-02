@@ -169,6 +169,7 @@ impl Store for DbStore {
 	
 	Ok(Scope::from_parts(parts))
     }
+    
     async fn get_challenge_info(&self, id: String) -> Result<Option<tomiko_auth::ChallengeInfo>, ()> {
 	let result = sqlx::query!("SELECT * FROM challenges WHERE id = ?", id)
 	    .fetch_optional(&self.pool)
