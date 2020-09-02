@@ -232,9 +232,15 @@ pub struct ChallengeInfo {
 
 #[derive(Debug)]
 #[cfg_attr(feature = "serde-traits", derive(serde::Deserialize))]
-pub enum UpdateChallengeInfo {
+pub enum UpdateChallengeInfoRequest {
     Accept,
     Reject
+}
+
+#[derive(Debug)]
+#[cfg_attr(feature = "serde-traits", derive(serde::Serialize))]
+pub enum UpdateChallengeInfoResponse {
+    RedirectTo(RedirectUri)
 }
 
 pub enum MaybeChallenge<T> {
@@ -293,6 +299,11 @@ pub trait Provider {
 	&self,
 	id: String
     ) -> Option<ChallengeInfo>;
+    async fn update_challenge_info_request(
+	&self,
+	id: String,
+	req: UpdateChallengeInfoRequest
+    ) -> Result<UpdateChallengeInfoResponse, ()>;
 }
 
 
