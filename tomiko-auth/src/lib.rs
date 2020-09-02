@@ -221,6 +221,15 @@ pub struct Challenge {
     pub id: String
 }
 
+#[derive(Debug)]
+#[cfg_attr(feature = "serde-traits", derive(serde::Serialize))]
+pub struct ChallengeInfo {
+    pub id: String,
+    pub client_id: ClientId,
+    pub uri: RedirectUri,
+    pub scope: Scope,
+}
+
 pub enum MaybeChallenge<T> {
     Challenge(Challenge),
     Accept(T)
@@ -259,6 +268,7 @@ pub trait Store {
     ) -> Result<AuthCodeData, ()>;
     async fn clean_up(&self) -> Result<(), ()>;
     async fn trim_client_scopes(&self, client_id: &ClientId, scope: &Scope) -> Result<Scope, ()>;
+    async fn get_challenge_info(&self, id: String) -> Result<Option<ChallengeInfo>, ()>;
 }
 
 #[async_trait]
@@ -272,6 +282,10 @@ pub trait Provider {
         credentials: ClientCredentials,
         req: TokenRequest,
     ) -> Result<AccessTokenResponse, AccessTokenError>;
+    async fn get_challenge_info(
+	&self,
+	id: String
+    ) -> Option<ChallengeInfo>;
 }
 
 
