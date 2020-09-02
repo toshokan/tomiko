@@ -1,4 +1,4 @@
-use tomiko_auth::{ClientCredentials, Provider};
+use tomiko_auth::{ClientCredentials, Provider, UpdateChallengeInfoRequest};
 
 use std::sync::Arc;
 use warp::{Filter, Rejection};
@@ -68,6 +68,7 @@ impl<P: Provider + Send + Sync + 'static> Server<P> {
             });
 
 	let challenge_info = warp::path!("challenge" / String)
+	    .and(warp::get())
 	    .and(with_provider.clone())
 	    .and_then(|id, provider: Arc<P>| async move {
 		provider.get_challenge_info(id).await
@@ -75,9 +76,19 @@ impl<P: Provider + Send + Sync + 'static> Server<P> {
 		    .ok_or_else(|| warp::reject()) // TODO
 	    });
 
+	let update_challenge_info = warp::path!("challenge" / String)
+	    .and(warp::post())
+	    .and(warp::body::json())
+	    .and(with_provider.clone())
+	    .and_then(|id, req: UpdateChallengeInfoRequest, provider: Arc<P>| async move {
+		provider.update_challenge_info_request(id, req).await
+		    .map(|i| warp::reply::json(&i))
+		    .map_err(|_| warp::reject()) // TODO
+	    });
+
         let routes = oauth
             .and(warp::path("v1"))
-            .and(authenticate.or(token_request).or(challenge_info))
+            .and(authenticate.or(token_request).or(challenge_info).or(update_challenge_info))
             .recover(handle_reject)
             .with(warp::log("http-api"));
 
