@@ -176,15 +176,24 @@ impl Provider for OAuth2Provider {
     }
     async fn update_challenge_info_request(
         &self,
-	_id: String,
+	id: String,
         req: UpdateChallengeInfoRequest,
     ) -> Result<tomiko_auth::UpdateChallengeInfoResponse, ()> {
         use UpdateChallengeInfoRequest::*;
 	use UpdateChallengeInfoResponse::RedirectTo;
-        let uri = match req {
-	    Accept => RedirectUri("example.org".to_string()),
-	    Reject => RedirectUri("localhost/failure".to_string())
+
+	let info = self.store.get_challenge_info(id)
+	    .await?;
+
+	let uri = if let Some(info) = info {
+	    match req {
+		Accept => info.uri,
+		Reject => RedirectUri("localhost/failure".to_string())
+	    }
+	} else {
+	    RedirectUri("localhost/not_found".to_string())
 	};
+	
 	Ok(RedirectTo(uri))
     }
 }
