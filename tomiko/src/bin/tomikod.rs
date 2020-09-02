@@ -1,16 +1,17 @@
 use tomiko_auth::{
     AccessTokenError, AccessTokenErrorKind, AccessTokenResponse, AuthorizationError,
     AuthorizationRequest, AuthorizationResponse, ClientCredentials, Store, TokenRequest,
+    UpdateChallengeInfoRequest, UpdateChallengeInfoResponse,
 };
 use tomiko_core::models::{AuthCodeData, Client};
 use tomiko_core::types::{AuthCode, ClientId, RedirectUri, Scope};
 use tomiko_util::{hash::HashingService, random::FromRandom};
 
 use async_trait::async_trait;
+use jsonwebtoken::EncodingKey;
 use std::sync::Arc;
 use tomiko_db::DbStore;
 use tomiko_http::server::Server;
-use jsonwebtoken::EncodingKey;
 
 #[derive(Debug)]
 struct OAuth2Provider {
@@ -71,7 +72,10 @@ impl OAuth2Provider {
     }
 }
 
-use tomiko_auth::{MaybeChallenge::{self, *}, Provider};
+use tomiko_auth::{
+    MaybeChallenge::{self, *},
+    Provider,
+};
 
 #[async_trait]
 impl Provider for OAuth2Provider {
@@ -79,40 +83,39 @@ impl Provider for OAuth2Provider {
         &self,
         req: AuthorizationRequest,
     ) -> Result<MaybeChallenge<AuthorizationResponse>, AuthorizationError> {
-	use AuthorizationRequest::*;
-	
-	match req {
-	    AuthorizationCode(req) => {
-		self.validate_client(&req.client_id, &req.redirect_uri, &req.state)
-		    .await?;
-		let state = req.state.clone();
+        use AuthorizationRequest::*;
 
-		let code = AuthCode::from_random();
+        match req {
+            AuthorizationCode(req) => {
+                self.validate_client(&req.client_id, &req.redirect_uri, &req.state)
+                    .await?;
+                let state = req.state.clone();
 
-		let data = AuthCodeData {
-		    client_id: req.client_id,
-		    code,
-		    state: req.state,
-		    redirect_uri: req.redirect_uri,
-		    scope: Some(req.scope), // TODO
-		};
+                let code = AuthCode::from_random();
 
-		let expiry = std::time::SystemTime::now()
-		    .checked_add(std::time::Duration::from_secs(10 * 60))
-		    .unwrap();
+                let data = AuthCodeData {
+                    client_id: req.client_id,
+                    code,
+                    state: req.state,
+                    redirect_uri: req.redirect_uri,
+                    scope: Some(req.scope), // TODO
+                };
 
-		let data = self
-		    .store
-		    .store_code(data, expiry)
-		    .await
-		    .map_err(|_| AuthorizationError::server_error(&state))?;
+                let expiry = std::time::SystemTime::now()
+                    .checked_add(std::time::Duration::from_secs(10 * 60))
+                    .unwrap();
 
-		let response = AuthorizationResponse::new(data.code, data.state);
-		Ok(Accept(response))
-	    },
-	    _ => unimplemented!()
-	}
-        
+                let data = self
+                    .store
+                    .store_code(data, expiry)
+                    .await
+                    .map_err(|_| AuthorizationError::server_error(&state))?;
+
+                let response = AuthorizationResponse::new(data.code, data.state);
+                Ok(Accept(response))
+            }
+            _ => unimplemented!(),
+        }
     }
 
     async fn access_token_request(
@@ -121,60 +124,73 @@ impl Provider for OAuth2Provider {
         req: TokenRequest,
     ) -> Result<AccessTokenResponse, AccessTokenError> {
         let client = self.check_client_authentication(&credentials).await?;
-	use TokenRequest::*;
-	match req {
-	    AuthenticationCode(req) => {
-		let data = self
-		    .store
-		    .get_authcode_data(&client.id, &req.code)
-		    .await
-		    .map_err(|_| AccessTokenErrorKind::InvalidGrant)?;
+        use TokenRequest::*;
+        match req {
+            AuthenticationCode(req) => {
+                let data = self
+                    .store
+                    .get_authcode_data(&client.id, &req.code)
+                    .await
+                    .map_err(|_| AccessTokenErrorKind::InvalidGrant)?;
 
-		if &data.redirect_uri == &req.redirect_uri {
-		    let access_token = self.token.new_token(&client, data.scope.as_ref());
-		    let token_type = TokenService::token_type().to_string();
+                if &data.redirect_uri == &req.redirect_uri {
+                    let access_token = self.token.new_token(&client, data.scope.as_ref());
+                    let token_type = TokenService::token_type().to_string();
 
-		    Ok(AccessTokenResponse {
-			access_token,
-			token_type,
-			refresh_token: None,
-			expires_in: None,
-			scope: data.scope,
-		    })
-		} else {
-		    Err(AccessTokenErrorKind::InvalidGrant.into())
-		}
-	    },
-	    ClientCredentials(req) => {
-		let scope = self.store.trim_client_scopes(&client.id, &req.scope)
-		    .await.expect("Trim scopes issue");
-		
-		let access_token = self.token.new_token(&client, Some(&scope));
-		let token_type = TokenService::token_type().to_string();
+                    Ok(AccessTokenResponse {
+                        access_token,
+                        token_type,
+                        refresh_token: None,
+                        expires_in: None,
+                        scope: data.scope,
+                    })
+                } else {
+                    Err(AccessTokenErrorKind::InvalidGrant.into())
+                }
+            }
+            ClientCredentials(req) => {
+                let scope = self
+                    .store
+                    .trim_client_scopes(&client.id, &req.scope)
+                    .await
+                    .expect("Trim scopes issue");
 
-		Ok(AccessTokenResponse {
-		    access_token,
-		    token_type,
-		    refresh_token: None,
-		    expires_in: None,
-		    scope: Some(scope),
-		})
-	    },
-	    _ => unimplemented!()
-	}
+                let access_token = self.token.new_token(&client, Some(&scope));
+                let token_type = TokenService::token_type().to_string();
+
+                Ok(AccessTokenResponse {
+                    access_token,
+                    token_type,
+                    refresh_token: None,
+                    expires_in: None,
+                    scope: Some(scope),
+                })
+            }
+            _ => unimplemented!(),
+        }
     }
-    
-    async fn get_challenge_info(
-	&self,
-	id: String
-    ) -> Option<tomiko_auth::ChallengeInfo> {
-	let challenge = self.store.get_challenge_info(id).await.ok()?;
-	challenge
+
+    async fn get_challenge_info(&self, id: String) -> Option<tomiko_auth::ChallengeInfo> {
+        let challenge = self.store.get_challenge_info(id).await.ok()?;
+        challenge
+    }
+    async fn update_challenge_info_request(
+        &self,
+	_id: String,
+        req: UpdateChallengeInfoRequest,
+    ) -> Result<tomiko_auth::UpdateChallengeInfoResponse, ()> {
+        use UpdateChallengeInfoRequest::*;
+	use UpdateChallengeInfoResponse::RedirectTo;
+        let uri = match req {
+	    Accept => RedirectUri("example.org".to_string()),
+	    Reject => RedirectUri("localhost/failure".to_string())
+	};
+	Ok(RedirectTo(uri))
     }
 }
 
 struct TokenService {
-    secret: EncodingKey
+    secret: EncodingKey,
 }
 
 impl std::fmt::Debug for TokenService {
@@ -185,16 +201,15 @@ impl std::fmt::Debug for TokenService {
 
 impl TokenService {
     pub fn new(secret_path: &str) -> Self {
-	use std::io::Read;
-	
-	let mut contents = Vec::new();
-	std::fs::File::open(&secret_path)
-	    .expect("Failed to open secret")
-	    .read_to_end(&mut contents)
-	    .expect("Failed to read secret");
-	let secret = EncodingKey::from_ec_pem(&contents)
-	    .expect("Failed to parse secret");
-	
+        use std::io::Read;
+
+        let mut contents = Vec::new();
+        std::fs::File::open(&secret_path)
+            .expect("Failed to open secret")
+            .read_to_end(&mut contents)
+            .expect("Failed to read secret");
+        let secret = EncodingKey::from_ec_pem(&contents).expect("Failed to parse secret");
+
         Self { secret }
     }
 
@@ -203,34 +218,33 @@ impl TokenService {
     }
 
     fn current_timestamp() -> std::time::Duration {
-	use std::time::SystemTime;
-	let now = SystemTime::now();
-	
-	now.duration_since(SystemTime::UNIX_EPOCH)
-	    .expect("Unix Epoch is in the past.")
+        use std::time::SystemTime;
+        let now = SystemTime::now();
+
+        now.duration_since(SystemTime::UNIX_EPOCH)
+            .expect("Unix Epoch is in the past.")
     }
 
     pub fn new_token(&self, client: &Client, scope: Option<&Scope>) -> String {
-	use jsonwebtoken::{encode, Header, Algorithm};
+        use jsonwebtoken::{encode, Algorithm, Header};
 
-	let time_now = Self::current_timestamp().as_secs();
-	let expiry = time_now + 3600;
+        let time_now = Self::current_timestamp().as_secs();
+        let expiry = time_now + 3600;
 
-	let claims = TomikoClaims {
-	    sub: client.id.0.to_string(),
-	    scope: scope.cloned().unwrap_or(Scope::from_delimited_parts("")),
-	    iat: time_now,
-	    exp: expiry,
-	    iss: "tomiko".to_string()
-	};
+        let claims = TomikoClaims {
+            sub: client.id.0.to_string(),
+            scope: scope.cloned().unwrap_or(Scope::from_delimited_parts("")),
+            iat: time_now,
+            exp: expiry,
+            iss: "tomiko".to_string(),
+        };
 
-	let header = Header {
-	    alg: Algorithm::ES256,
-	    ..Default::default()
-	};
-	
-	encode(&header, &claims, &self.secret)
-	    .expect("Failed to encode token claims")
+        let header = Header {
+            alg: Algorithm::ES256,
+            ..Default::default()
+        };
+
+        encode(&header, &claims, &self.secret).expect("Failed to encode token claims")
     }
 }
 
@@ -239,7 +253,11 @@ async fn tomikod(config: Config) -> Option<()> {
     let hasher = HashingService::with_secret_key(config.hash_secret);
     let token = TokenService::new(&config.jwt_private_key_file);
 
-    let provider = Arc::new(OAuth2Provider { store, hasher, token });
+    let provider = Arc::new(OAuth2Provider {
+        store,
+        hasher,
+        token,
+    });
 
     let _clean_up = {
         let provider = Arc::clone(&provider);
@@ -264,7 +282,7 @@ struct TomikoClaims {
     iss: String,
     iat: u64,
     exp: u64,
-    scope: Scope
+    scope: Scope,
 }
 
 impl Config {
