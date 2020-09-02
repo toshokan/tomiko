@@ -45,9 +45,10 @@ impl<P: Provider + Send + Sync + 'static> Server<P> {
 		
 		let result = provider.authorization_request(req).await;
 		match result.transpose() {
-		    Challenge(_) => {
+		    Challenge(c) => {
+			let url = format!("http://localhost:8001/login?challenge={}", c.id);
 			Ok(warp::http::Response::builder()
-			    .header("Location", "http://localhost:8002/login.html?sid=test123")
+			    .header("Location", url)
 			    .status(307)
 			    .body(warp::hyper::Body::empty())
 			    .unwrap())

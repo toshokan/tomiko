@@ -226,7 +226,7 @@ pub struct ClientCredentials {
 #[derive(Debug)]
 #[cfg_attr(feature = "serde-traits", derive(serde::Serialize))]
 pub struct Challenge {
-    id: String
+    pub id: String
 }
 
 pub enum MaybeChallenge<T> {
