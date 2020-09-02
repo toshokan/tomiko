@@ -72,14 +72,6 @@ pub enum TokenRequest {
     ClientCredentials(ClientCredentialsTokenRequest),
 }
 
-// #[derive(Debug)]
-// #[cfg_attr(feature = "serde-traits", derive(serde::Deserialize))]
-// pub struct TokenRequest {
-//     pub grant_type: GrantType,
-//     pub redirect_uri: RedirectUri,
-//     pub code: AuthCode,
-// }
-
 #[derive(Debug)]
 #[cfg_attr(feature = "serde-traits", derive(serde::Serialize))]
 pub struct AuthorizationResponse {
