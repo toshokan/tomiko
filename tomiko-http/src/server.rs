@@ -67,9 +67,17 @@ impl<P: Provider + Send + Sync + 'static> Server<P> {
                 form_encode(result)
             });
 
+	let challenge_info = warp::path!("challenge" / String)
+	    .and(with_provider.clone())
+	    .and_then(|id, provider: Arc<P>| async move {
+		provider.get_challenge_info(id).await
+		    .map(|i| warp::reply::json(&i))
+		    .ok_or_else(|| warp::reject()) // TODO
+	    });
+
         let routes = oauth
             .and(warp::path("v1"))
-            .and(authenticate.or(token_request))
+            .and(authenticate.or(token_request).or(challenge_info))
             .recover(handle_reject)
             .with(warp::log("http-api"));
 
