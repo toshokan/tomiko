@@ -163,6 +163,14 @@ impl Provider for OAuth2Provider {
 	    _ => unimplemented!()
 	}
     }
+    
+    async fn get_challenge_info(
+	&self,
+	id: String
+    ) -> Option<tomiko_auth::ChallengeInfo> {
+	let challenge = self.store.get_challenge_info(id).await.ok()?;
+	challenge
+    }
 }
 
 struct TokenService {

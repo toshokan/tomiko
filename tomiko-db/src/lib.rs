@@ -1,6 +1,6 @@
 #![allow(clippy::toplevel_ref_arg)]
 
-use tomiko_auth::Store;
+use tomiko_auth::{Store, ChallengeInfo};
 use tomiko_core::models::{AuthCodeData, Client, RedirectRecord};
 use tomiko_core::types::{AuthCode, ClientId, HashedClientSecret, RedirectUri, Scope};
 
@@ -33,13 +33,13 @@ impl Store for DbStore {
             client_id.0,
             uri.0
         )
-        .fetch_optional(&self.pool)
-        .await
-        .map_err(|_| ())?
-        .map(|r| RedirectRecord {
-            client_id: ClientId(r.client_id),
-            uri: RedirectUri(r.uri),
-        });
+            .fetch_optional(&self.pool)
+            .await
+            .map_err(|_| ())?
+            .map(|r| RedirectRecord {
+		client_id: ClientId(r.client_id),
+		uri: RedirectUri(r.uri),
+            });
 
         if result.is_some() {
             return Ok(());
@@ -66,9 +66,9 @@ impl Store for DbStore {
             scope,
 	    invalid_after
         )
-        .execute(&self.pool)
-        .await
-        .map_err(|_| ())?;
+            .execute(&self.pool)
+            .await
+            .map_err(|_| ())?;
 
         Ok(data)
     }
@@ -95,9 +95,9 @@ impl Store for DbStore {
             client_id.0,
             secret.0
         )
-        .execute(&self.pool)
-        .await
-        .map_err(|_| ())?;
+            .execute(&self.pool)
+            .await
+            .map_err(|_| ())?;
 
         let client = self
             .get_client(&client_id)
@@ -116,16 +116,16 @@ impl Store for DbStore {
             client_id.0,
             code.0
         )
-        .fetch_optional(&self.pool)
-        .await
-        .map_err(|_| ())?
-        .map(|r| AuthCodeData {
-            client_id: ClientId(r.client_id),
-            code: AuthCode(r.code),
-            state: r.state,
-            redirect_uri: RedirectUri(r.uri),
-            scope: r.scope.map(|s| Scope::from_delimited_parts(&s)),
-        });
+            .fetch_optional(&self.pool)
+            .await
+            .map_err(|_| ())?
+            .map(|r| AuthCodeData {
+		client_id: ClientId(r.client_id),
+		code: AuthCode(r.code),
+		state: r.state,
+		redirect_uri: RedirectUri(r.uri),
+		scope: r.scope.map(|s| Scope::from_delimited_parts(&s)),
+            });
 
         result.ok_or(())
     }
@@ -155,7 +155,7 @@ impl Store for DbStore {
             "SELECT scope FROM client_scopes WHERE client_id = ?",
             client_id.0
         )
-        .fetch_all(&self.pool)
+            .fetch_all(&self.pool)
             .await
 	    .map_err(|_| ())?;
 	
@@ -168,5 +168,23 @@ impl Store for DbStore {
 	}).collect();
 	
 	Ok(Scope::from_parts(parts))
+    }
+    async fn get_challenge_info(&self, id: String) -> Result<Option<tomiko_auth::ChallengeInfo>, ()> {
+	let result = sqlx::query!("SELECT * FROM challenges WHERE id = ?", id)
+	    .fetch_optional(&self.pool)
+	    .await
+	    .map(|r| {
+		r.map(|r| {
+		    ChallengeInfo {
+			id: r.id,
+			client_id: ClientId(r.client_id),
+			uri: RedirectUri(r.uri),
+			scope: Scope::from_delimited_parts(&r.scope)
+		    }
+		})
+	    })
+	    .map_err(|_| ())?;
+	
+	Ok(result)
     }
 }
