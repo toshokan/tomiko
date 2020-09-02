@@ -68,6 +68,7 @@ pub enum ResponseType {
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
 #[cfg_attr(
     feature = "serde-traits",
+    derive(serde::Serialize),
     derive(serde::Deserialize),
     serde(transparent)
 )]
@@ -76,6 +77,7 @@ pub struct ClientId(pub String); // TODO
 #[derive(Clone, Debug, PartialEq, Eq)]
 #[cfg_attr(
     feature = "serde-traits",
+    derive(serde::Serialize),
     derive(serde::Deserialize),
     serde(transparent)
 )]
