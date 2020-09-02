@@ -230,6 +230,13 @@ pub struct ChallengeInfo {
     pub scope: Scope,
 }
 
+#[derive(Debug)]
+#[cfg_attr(feature = "serde-traits", derive(serde::Deserialize))]
+pub enum UpdateChallengeInfo {
+    Accept,
+    Reject
+}
+
 pub enum MaybeChallenge<T> {
     Challenge(Challenge),
     Accept(T)
