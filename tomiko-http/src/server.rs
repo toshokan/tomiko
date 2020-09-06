@@ -41,22 +41,21 @@ impl<P: Provider + Send + Sync + 'static> Server<P> {
             .and(with_provider.clone())
             .and(warp::filters::query::query())
             .and_then(|provider: Arc<P>, req| async move {
-		use tomiko_auth::{MaybeChallenge::*, ChallengeExt};
-		use warp::reply::Reply;
-		
-		let result = provider.authorization_request(req).await;
-		match result.transpose() {
-		    Challenge(c) => {
-			let url = format!("http://localhost:8001/login?challenge-id={}", c.id.0);
-			Ok(warp::http::Response::builder()
-			    .header("Location", url)
-			    .status(307)
-			    .body(warp::hyper::Body::empty())
-			    .unwrap())
-		    },
-		    Accept(result) => form_encode(result)
-			.map(|r| r.into_response())
-		}
+                use tomiko_auth::{ChallengeExt, MaybeChallenge::*};
+                use warp::reply::Reply;
+
+                let result = provider.authorization_request(req).await;
+                match result.transpose() {
+                    Challenge(c) => {
+                        let url = format!("http://localhost:8001/login?challenge-id={}", c.id.0);
+                        Ok(warp::http::Response::builder()
+                            .header("Location", url)
+                            .status(307)
+                            .body(warp::hyper::Body::empty())
+                            .unwrap())
+                    }
+                    Accept(result) => form_encode(result).map(|r| r.into_response()),
+                }
             });
 
         let token_request = warp::path("token")
@@ -68,28 +67,39 @@ impl<P: Provider + Send + Sync + 'static> Server<P> {
                 form_encode(result)
             });
 
-	let challenge_info = warp::path!("challenge" / ChallengeId)
-	    .and(warp::get())
-	    .and(with_provider.clone())
-	    .and_then(|id, provider: Arc<P>| async move {
-		provider.get_challenge_info(id).await
-		    .map(|i| warp::reply::json(&i))
-		    .ok_or_else(|| warp::reject()) // TODO
-	    });
+        let challenge_info = warp::path!("challenge" / ChallengeId)
+            .and(warp::get())
+            .and(with_provider.clone())
+            .and_then(|id, provider: Arc<P>| async move {
+                provider
+                    .get_challenge_info(id)
+                    .await
+                    .map(|i| warp::reply::json(&i))
+                    .ok_or_else(|| warp::reject()) // TODO
+            });
 
-	let update_challenge_info = warp::path!("challenge" / ChallengeId)
-	    .and(warp::post())
-	    .and(warp::body::json())
-	    .and(with_provider.clone())
-	    .and_then(|id, req: UpdateChallengeInfoRequest, provider: Arc<P>| async move {
-		provider.update_challenge_info_request(id, req).await
-		    .map(|i| warp::reply::json(&i))
-		    .map_err(|_| warp::reject()) // TODO
-	    });
+        let update_challenge_info = warp::path!("challenge" / ChallengeId)
+            .and(warp::post())
+            .and(warp::body::json())
+            .and(with_provider.clone())
+            .and_then(
+                |id, req: UpdateChallengeInfoRequest, provider: Arc<P>| async move {
+                    provider
+                        .update_challenge_info_request(id, req)
+                        .await
+                        .map(|i| warp::reply::json(&i))
+                        .map_err(|_| warp::reject()) // TODO
+                },
+            );
 
         let routes = oauth
             .and(warp::path("v1"))
-            .and(authenticate.or(token_request).or(challenge_info).or(update_challenge_info))
+            .and(
+                authenticate
+                    .or(token_request)
+                    .or(challenge_info)
+                    .or(update_challenge_info),
+            )
             .recover(handle_reject)
             .with(warp::log("http-api"));
 

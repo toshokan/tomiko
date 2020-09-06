@@ -99,8 +99,8 @@ impl Provider for OAuth2Provider {
                     state: req.state,
                 };
 
-		let id = self.store.store_challenge_info(info).await.unwrap();
-		let challenge = tomiko_auth::Challenge { id };
+                let id = self.store.store_challenge_info(info).await.unwrap();
+                let challenge = tomiko_auth::Challenge { id };
 
                 Ok(Challenge(challenge))
 
@@ -187,7 +187,7 @@ impl Provider for OAuth2Provider {
         let challenge = self.store.get_challenge_info(id).await.ok()?;
         challenge
     }
-    
+
     async fn update_challenge_info_request(
         &self,
         id: ChallengeId,

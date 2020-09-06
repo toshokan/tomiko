@@ -25,7 +25,7 @@ impl From<AccessTokenError> for AuthRejection {
 pub async fn handle_reject(err: Rejection) -> Result<impl Reply, Rejection> {
     match err.find::<AuthRejection>() {
         Some(e) => {
-	    let response = warp::reply::json(e);
+            let response = warp::reply::json(e);
             let reply = warp::reply::with_status(response, warp::http::StatusCode::BAD_REQUEST);
             Ok(reply)
         }

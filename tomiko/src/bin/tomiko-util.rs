@@ -22,7 +22,7 @@ enum SubCommand {
     AddClientUri(AddClientUri),
     DeleteClientUri(DeleteClientUri),
     AddClientScope(AddClientScope),
-    DeleteClientScope(DeleteClientScope)
+    DeleteClientScope(DeleteClientScope),
 }
 
 #[derive(Clap)]
@@ -60,7 +60,7 @@ struct AddClientScope {
     #[clap(short, long)]
     id: String,
     #[clap(short, long)]
-    scope: String
+    scope: String,
 }
 
 #[derive(Clap)]
@@ -68,7 +68,7 @@ struct DeleteClientScope {
     #[clap(short, long)]
     id: String,
     #[clap(short, long)]
-    scope: String
+    scope: String,
 }
 
 async fn get_database(uri: &str) -> SqlitePool {
@@ -148,10 +148,14 @@ async fn add_client_scope(c: &AddClientScope, opts: &Options) {
     let scopes = c.scope.split(" ");
 
     for scope in scopes {
-	sqlx::query!("INSERT INTO client_scopes(client_id, scope) VALUES(?, ?)", c.id, scope)
-            .execute(&db)
-            .await
-            .expect("Failed to add scope");	
+        sqlx::query!(
+            "INSERT INTO client_scopes(client_id, scope) VALUES(?, ?)",
+            c.id,
+            scope
+        )
+        .execute(&db)
+        .await
+        .expect("Failed to add scope");
     }
 
     println!("OK!")
@@ -163,10 +167,14 @@ async fn delete_client_scope(c: &DeleteClientScope, opts: &Options) {
     let scopes = c.scope.split(" ");
 
     for scope in scopes {
-	sqlx::query!("DELETE FROM client_scopes WHERE client_id = ? AND scope = ?", c.id, scope)
-            .execute(&db)
-            .await
-            .expect("Failed to delete scope");	
+        sqlx::query!(
+            "DELETE FROM client_scopes WHERE client_id = ? AND scope = ?",
+            c.id,
+            scope
+        )
+        .execute(&db)
+        .await
+        .expect("Failed to delete scope");
     }
 
     println!("OK!")
@@ -184,7 +192,7 @@ async fn main() {
         DeleteClient(c) => delete_client(c, &opts).await,
         AddClientUri(c) => add_client_uri(c, &opts).await,
         DeleteClientUri(c) => delete_client_uri(c, &opts).await,
-	AddClientScope(c) => add_client_scope(c, &opts).await,
+        AddClientScope(c) => add_client_scope(c, &opts).await,
         DeleteClientScope(c) => delete_client_scope(c, &opts).await,
     };
 }

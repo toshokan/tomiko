@@ -16,9 +16,9 @@ pub struct Scope(Vec<String>);
 
 impl Scope {
     pub fn from_parts(parts: Vec<String>) -> Self {
-	Self(parts)
+        Self(parts)
     }
-    
+
     pub fn from_delimited_parts(parts: &str) -> Self {
         let parts = parts.split(' ').map(ToString::to_string).collect();
         Self(parts)
@@ -29,7 +29,7 @@ impl Scope {
     }
 
     pub fn as_parts(&self) -> Vec<String> {
-	self.0.iter().cloned().collect()
+        self.0.iter().cloned().collect()
     }
 }
 
@@ -121,6 +121,6 @@ pub struct ChallengeId(pub String);
 impl std::str::FromStr for ChallengeId {
     type Err = std::convert::Infallible;
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-	Ok(Self(s.to_string()))
+        Ok(Self(s.to_string()))
     }
 }

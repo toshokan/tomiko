@@ -1,8 +1,8 @@
 #![allow(clippy::toplevel_ref_arg)]
 
-use tomiko_auth::{Store, ChallengeInfo};
+use tomiko_auth::{ChallengeInfo, Store};
 use tomiko_core::models::{AuthCodeData, Client, RedirectRecord};
-use tomiko_core::types::{AuthCode, ClientId, HashedClientSecret, RedirectUri, Scope, ChallengeId};
+use tomiko_core::types::{AuthCode, ChallengeId, ClientId, HashedClientSecret, RedirectUri, Scope};
 
 use sqlx::sqlite::SqlitePool;
 use std::time::SystemTime;
@@ -17,7 +17,7 @@ impl DbStore {
         let pool = SqlitePool::builder()
             .max_size(5)
             .build(db_uri)
-	    .await
+            .await
             .map_err(|_| ())?;
 
         Ok(Self { pool })
@@ -32,13 +32,13 @@ impl Store for DbStore {
             client_id.0,
             uri.0
         )
-            .fetch_optional(&self.pool)
-            .await
-            .map_err(|_| ())?
-            .map(|r| RedirectRecord {
-		client_id: ClientId(r.client_id),
-		uri: RedirectUri(r.uri),
-            });
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(|_| ())?
+        .map(|r| RedirectRecord {
+            client_id: ClientId(r.client_id),
+            uri: RedirectUri(r.uri),
+        });
 
         if result.is_some() {
             return Ok(());
@@ -94,9 +94,9 @@ impl Store for DbStore {
             client_id.0,
             secret.0
         )
-            .execute(&self.pool)
-            .await
-            .map_err(|_| ())?;
+        .execute(&self.pool)
+        .await
+        .map_err(|_| ())?;
 
         let client = self
             .get_client(&client_id)
@@ -115,16 +115,16 @@ impl Store for DbStore {
             client_id.0,
             code.0
         )
-            .fetch_optional(&self.pool)
-            .await
-            .map_err(|_| ())?
-            .map(|r| AuthCodeData {
-		client_id: ClientId(r.client_id),
-		code: AuthCode(r.code),
-		state: r.state,
-		redirect_uri: RedirectUri(r.uri),
-		scope: r.scope.map(|s| Scope::from_delimited_parts(&s)),
-            });
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(|_| ())?
+        .map(|r| AuthCodeData {
+            client_id: ClientId(r.client_id),
+            code: AuthCode(r.code),
+            state: r.state,
+            redirect_uri: RedirectUri(r.uri),
+            scope: r.scope.map(|s| Scope::from_delimited_parts(&s)),
+        });
 
         result.ok_or(())
     }
@@ -149,60 +149,64 @@ impl Store for DbStore {
     async fn trim_client_scopes(&self, client_id: &ClientId, scope: &Scope) -> Result<Scope, ()> {
         use std::collections::HashSet;
         use std::iter::FromIterator;
-	
+
         let mut results = sqlx::query!(
             "SELECT scope FROM client_scopes WHERE client_id = ?",
             client_id.0
         )
-            .fetch_all(&self.pool)
-            .await
-	    .map_err(|_| ())?;
-	
-	let results = results.drain(..).map(move |r| r.scope);
+        .fetch_all(&self.pool)
+        .await
+        .map_err(|_| ())?;
+
+        let results = results.drain(..).map(move |r| r.scope);
 
         let allowed_scopes: HashSet<String> = HashSet::from_iter(results);
-	
-	let parts = scope.as_parts().drain(..).filter(|p| {
-	    allowed_scopes.contains(p)
-	}).collect();
-	
-	Ok(Scope::from_parts(parts))
+
+        let parts = scope
+            .as_parts()
+            .drain(..)
+            .filter(|p| allowed_scopes.contains(p))
+            .collect();
+
+        Ok(Scope::from_parts(parts))
     }
 
     async fn store_challenge_info(&self, info: ChallengeInfo) -> Result<ChallengeId, ()> {
-	let id = info.id.clone();
+        let id = info.id.clone();
 
-	sqlx::query!("INSERT INTO challenges(id, client_id, uri, scope, state) VALUES (?,?,?,?,?)",
-		     info.id.0,
-		     info.client_id.0,
-		     info.uri.0,
-		     info.scope.as_joined(),
-		     info.state
-	)
-	    .execute(&self.pool)
-	    .await
-	    .map_err(|_| ())?;
+        sqlx::query!(
+            "INSERT INTO challenges(id, client_id, uri, scope, state) VALUES (?,?,?,?,?)",
+            info.id.0,
+            info.client_id.0,
+            info.uri.0,
+            info.scope.as_joined(),
+            info.state
+        )
+        .execute(&self.pool)
+        .await
+        .map_err(|_| ())?;
 
-	Ok(id)
+        Ok(id)
     }
-    
-    async fn get_challenge_info(&self, id: ChallengeId) -> Result<Option<tomiko_auth::ChallengeInfo>, ()> {
-	let result = sqlx::query!("SELECT * FROM challenges WHERE id = ?", id.0)
-	    .fetch_optional(&self.pool)
-	    .await
-	    .map(|r| {
-		r.map(|r| {
-		    ChallengeInfo {
-			id: ChallengeId(r.id),
-			client_id: ClientId(r.client_id),
-			uri: RedirectUri(r.uri),
-			scope: Scope::from_delimited_parts(&r.scope),
-			state: r.state
-		    }
-		})
-	    })
-	    .map_err(|_| ())?;
-	
-	Ok(result)
+
+    async fn get_challenge_info(
+        &self,
+        id: ChallengeId,
+    ) -> Result<Option<tomiko_auth::ChallengeInfo>, ()> {
+        let result = sqlx::query!("SELECT * FROM challenges WHERE id = ?", id.0)
+            .fetch_optional(&self.pool)
+            .await
+            .map(|r| {
+                r.map(|r| ChallengeInfo {
+                    id: ChallengeId(r.id),
+                    client_id: ClientId(r.client_id),
+                    uri: RedirectUri(r.uri),
+                    scope: Scope::from_delimited_parts(&r.scope),
+                    state: r.state,
+                })
+            })
+            .map_err(|_| ())?;
+
+        Ok(result)
     }
 }

@@ -228,7 +228,7 @@ pub struct ChallengeInfo {
     pub client_id: ClientId,
     pub uri: RedirectUri,
     pub scope: Scope,
-    pub state: Option<String>
+    pub state: Option<String>,
 }
 
 #[derive(Debug)]
