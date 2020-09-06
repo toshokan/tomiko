@@ -1,4 +1,5 @@
 use tomiko_auth::{ClientCredentials, Provider, UpdateChallengeInfoRequest};
+use tomiko_core::types::ChallengeId;
 
 use std::sync::Arc;
 use warp::{Filter, Rejection};
@@ -46,7 +47,7 @@ impl<P: Provider + Send + Sync + 'static> Server<P> {
 		let result = provider.authorization_request(req).await;
 		match result.transpose() {
 		    Challenge(c) => {
-			let url = format!("http://localhost:8001/login?challenge={}", c.id);
+			let url = format!("http://localhost:8001/login?challenge-id={}", c.id.0);
 			Ok(warp::http::Response::builder()
 			    .header("Location", url)
 			    .status(307)
@@ -67,7 +68,7 @@ impl<P: Provider + Send + Sync + 'static> Server<P> {
                 form_encode(result)
             });
 
-	let challenge_info = warp::path!("challenge" / String)
+	let challenge_info = warp::path!("challenge" / ChallengeId)
 	    .and(warp::get())
 	    .and(with_provider.clone())
 	    .and_then(|id, provider: Arc<P>| async move {
@@ -76,7 +77,7 @@ impl<P: Provider + Send + Sync + 'static> Server<P> {
 		    .ok_or_else(|| warp::reject()) // TODO
 	    });
 
-	let update_challenge_info = warp::path!("challenge" / String)
+	let update_challenge_info = warp::path!("challenge" / ChallengeId)
 	    .and(warp::post())
 	    .and(warp::body::json())
 	    .and(with_provider.clone())

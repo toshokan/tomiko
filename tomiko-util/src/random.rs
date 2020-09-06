@@ -1,4 +1,4 @@
-use tomiko_core::types::AuthCode;
+use tomiko_core::types::{AuthCode, ChallengeId};
 
 pub trait FromRandom {
     fn from_random() -> Self;
@@ -7,6 +7,12 @@ pub trait FromRandom {
 impl FromRandom for AuthCode {
     fn from_random() -> Self {
         AuthCode(random_string(64))
+    }
+}
+
+impl FromRandom for ChallengeId {
+    fn from_random() -> Self {
+        ChallengeId(random_string(64))
     }
 }
 

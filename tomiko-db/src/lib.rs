@@ -2,7 +2,7 @@
 
 use tomiko_auth::{Store, ChallengeInfo};
 use tomiko_core::models::{AuthCodeData, Client, RedirectRecord};
-use tomiko_core::types::{AuthCode, ClientId, HashedClientSecret, RedirectUri, Scope};
+use tomiko_core::types::{AuthCode, ClientId, HashedClientSecret, RedirectUri, Scope, ChallengeId};
 
 use sqlx::sqlite::SqlitePool;
 use std::time::SystemTime;
@@ -168,18 +168,36 @@ impl Store for DbStore {
 	
 	Ok(Scope::from_parts(parts))
     }
+
+    async fn store_challenge_info(&self, info: ChallengeInfo) -> Result<ChallengeId, ()> {
+	let id = info.id.clone();
+
+	sqlx::query!("INSERT INTO challenges(id, client_id, uri, scope, state) VALUES (?,?,?,?,?)",
+		     info.id.0,
+		     info.client_id.0,
+		     info.uri.0,
+		     info.scope.as_joined(),
+		     info.state
+	)
+	    .execute(&self.pool)
+	    .await
+	    .map_err(|_| ())?;
+
+	Ok(id)
+    }
     
-    async fn get_challenge_info(&self, id: String) -> Result<Option<tomiko_auth::ChallengeInfo>, ()> {
-	let result = sqlx::query!("SELECT * FROM challenges WHERE id = ?", id)
+    async fn get_challenge_info(&self, id: ChallengeId) -> Result<Option<tomiko_auth::ChallengeInfo>, ()> {
+	let result = sqlx::query!("SELECT * FROM challenges WHERE id = ?", id.0)
 	    .fetch_optional(&self.pool)
 	    .await
 	    .map(|r| {
 		r.map(|r| {
 		    ChallengeInfo {
-			id: r.id,
+			id: ChallengeId(r.id),
 			client_id: ClientId(r.client_id),
 			uri: RedirectUri(r.uri),
-			scope: Scope::from_delimited_parts(&r.scope)
+			scope: Scope::from_delimited_parts(&r.scope),
+			state: r.state
 		    }
 		})
 	    })

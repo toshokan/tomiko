@@ -108,3 +108,19 @@ impl HashedClientSecret {
     serde(transparent)
 )]
 pub struct AuthCode(pub String); // TODO
+
+#[derive(Debug, Clone)]
+#[cfg_attr(
+    feature = "serde-traits",
+    derive(serde::Serialize),
+    derive(serde::Deserialize),
+    serde(transparent)
+)]
+pub struct ChallengeId(pub String);
+
+impl std::str::FromStr for ChallengeId {
+    type Err = std::convert::Infallible;
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+	Ok(Self(s.to_string()))
+    }
+}

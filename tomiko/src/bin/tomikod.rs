@@ -1,10 +1,10 @@
 use tomiko_auth::{
     AccessTokenError, AccessTokenErrorKind, AccessTokenResponse, AuthorizationError,
-    AuthorizationRequest, AuthorizationResponse, ClientCredentials, Store, TokenRequest,
-    UpdateChallengeInfoRequest, UpdateChallengeInfoResponse,
+    AuthorizationRequest, AuthorizationResponse, ChallengeInfo, ClientCredentials, Store,
+    TokenRequest, UpdateChallengeInfoRequest, UpdateChallengeInfoResponse,
 };
 use tomiko_core::models::{AuthCodeData, Client};
-use tomiko_core::types::{AuthCode, ClientId, RedirectUri, Scope};
+use tomiko_core::types::{AuthCode, ChallengeId, ClientId, RedirectUri, Scope};
 use tomiko_util::{hash::HashingService, random::FromRandom};
 
 use async_trait::async_trait;
@@ -89,30 +89,43 @@ impl Provider for OAuth2Provider {
             AuthorizationCode(req) => {
                 self.validate_client(&req.client_id, &req.redirect_uri, &req.state)
                     .await?;
-                let state = req.state.clone();
+                // let state = req.state.clone();
 
-                let code = AuthCode::from_random();
-
-                let data = AuthCodeData {
+                let info = ChallengeInfo {
+                    id: ChallengeId::from_random(),
                     client_id: req.client_id,
-                    code,
+                    uri: req.redirect_uri,
+                    scope: req.scope,
                     state: req.state,
-                    redirect_uri: req.redirect_uri,
-                    scope: Some(req.scope), // TODO
                 };
 
-                let expiry = std::time::SystemTime::now()
-                    .checked_add(std::time::Duration::from_secs(10 * 60))
-                    .unwrap();
+		let id = self.store.store_challenge_info(info).await.unwrap();
+		let challenge = tomiko_auth::Challenge { id };
 
-                let data = self
-                    .store
-                    .store_code(data, expiry)
-                    .await
-                    .map_err(|_| AuthorizationError::server_error(&state))?;
+                Ok(Challenge(challenge))
 
-                let response = AuthorizationResponse::new(data.code, data.state);
-                Ok(Accept(response))
+                // let code = AuthCode::from_random();
+
+                // let data = AuthCodeData {
+                //     client_id: req.client_id,
+                //     code,
+                //     state: req.state,
+                //     redirect_uri: req.redirect_uri,
+                //     scope: Some(req.scope), // TODO
+                // };
+
+                // let expiry = std::time::SystemTime::now()
+                //     .checked_add(std::time::Duration::from_secs(10 * 60))
+                //     .unwrap();
+
+                // let data = self
+                //     .store
+                //     .store_code(data, expiry)
+                //     .await
+                //     .map_err(|_| AuthorizationError::server_error(&state))?;
+
+                // let response = AuthorizationResponse::new(data.code, data.state);
+                // Ok(Accept(response))
             }
             _ => unimplemented!(),
         }
@@ -170,31 +183,31 @@ impl Provider for OAuth2Provider {
         }
     }
 
-    async fn get_challenge_info(&self, id: String) -> Option<tomiko_auth::ChallengeInfo> {
+    async fn get_challenge_info(&self, id: ChallengeId) -> Option<tomiko_auth::ChallengeInfo> {
         let challenge = self.store.get_challenge_info(id).await.ok()?;
         challenge
     }
+    
     async fn update_challenge_info_request(
         &self,
-	id: String,
+        id: ChallengeId,
         req: UpdateChallengeInfoRequest,
     ) -> Result<tomiko_auth::UpdateChallengeInfoResponse, ()> {
         use UpdateChallengeInfoRequest::*;
-	use UpdateChallengeInfoResponse::RedirectTo;
+        use UpdateChallengeInfoResponse::RedirectTo;
 
-	let info = self.store.get_challenge_info(id)
-	    .await?;
+        let info = self.store.get_challenge_info(id).await?;
 
-	let uri = if let Some(info) = info {
-	    match req {
-		Accept => info.uri,
-		Reject => RedirectUri("localhost/failure".to_string())
-	    }
-	} else {
-	    RedirectUri("localhost/not_found".to_string())
-	};
-	
-	Ok(RedirectTo(uri))
+        let uri = if let Some(info) = info {
+            match req {
+                Accept => info.uri,
+                Reject => RedirectUri("localhost/failure".to_string()),
+            }
+        } else {
+            RedirectUri("localhost/not_found".to_string())
+        };
+
+        Ok(RedirectTo(uri))
     }
 }
 

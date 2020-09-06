@@ -2,7 +2,7 @@ use async_trait::async_trait;
 use std::time::SystemTime;
 use tomiko_core::models::{AuthCodeData, Client};
 use tomiko_core::types::{
-    AuthCode, ClientId, ClientSecret, HashedClientSecret, RedirectUri, Scope,
+    AuthCode, ChallengeId, ClientId, ClientSecret, HashedClientSecret, RedirectUri, Scope,
 };
 
 #[derive(Debug)]
@@ -218,34 +218,35 @@ pub struct ClientCredentials {
 #[derive(Debug)]
 #[cfg_attr(feature = "serde-traits", derive(serde::Serialize))]
 pub struct Challenge {
-    pub id: String
+    pub id: ChallengeId,
 }
 
 #[derive(Debug)]
 #[cfg_attr(feature = "serde-traits", derive(serde::Serialize))]
 pub struct ChallengeInfo {
-    pub id: String,
+    pub id: ChallengeId,
     pub client_id: ClientId,
     pub uri: RedirectUri,
     pub scope: Scope,
+    pub state: Option<String>
 }
 
 #[derive(Debug)]
 #[cfg_attr(feature = "serde-traits", derive(serde::Deserialize))]
 pub enum UpdateChallengeInfoRequest {
     Accept,
-    Reject
+    Reject,
 }
 
 #[derive(Debug)]
 #[cfg_attr(feature = "serde-traits", derive(serde::Serialize))]
 pub enum UpdateChallengeInfoResponse {
-    RedirectTo(RedirectUri)
+    RedirectTo(RedirectUri),
 }
 
 pub enum MaybeChallenge<T> {
     Challenge(Challenge),
-    Accept(T)
+    Accept(T),
 }
 
 pub trait ChallengeExt<T, E> {
@@ -254,13 +255,13 @@ pub trait ChallengeExt<T, E> {
 
 impl<T, E> ChallengeExt<T, E> for Result<MaybeChallenge<T>, E> {
     fn transpose(self) -> MaybeChallenge<Result<T, E>> {
-	use MaybeChallenge::*;
-	
-	match self {
-	    Ok(Challenge(c)) => Challenge(c),
-	    Ok(Accept(t)) => Accept(Ok(t)),
-	    Err(e) => Accept(Err(e))
-	}
+        use MaybeChallenge::*;
+
+        match self {
+            Ok(Challenge(c)) => Challenge(c),
+            Ok(Accept(t)) => Accept(Ok(t)),
+            Err(e) => Accept(Err(e)),
+        }
     }
 }
 
@@ -281,7 +282,8 @@ pub trait Store {
     ) -> Result<AuthCodeData, ()>;
     async fn clean_up(&self) -> Result<(), ()>;
     async fn trim_client_scopes(&self, client_id: &ClientId, scope: &Scope) -> Result<Scope, ()>;
-    async fn get_challenge_info(&self, id: String) -> Result<Option<ChallengeInfo>, ()>;
+    async fn store_challenge_info(&self, info: ChallengeInfo) -> Result<ChallengeId, ()>;
+    async fn get_challenge_info(&self, id: ChallengeId) -> Result<Option<ChallengeInfo>, ()>;
 }
 
 #[async_trait]
@@ -295,15 +297,10 @@ pub trait Provider {
         credentials: ClientCredentials,
         req: TokenRequest,
     ) -> Result<AccessTokenResponse, AccessTokenError>;
-    async fn get_challenge_info(
-	&self,
-	id: String
-    ) -> Option<ChallengeInfo>;
+    async fn get_challenge_info(&self, id: ChallengeId) -> Option<ChallengeInfo>;
     async fn update_challenge_info_request(
-	&self,
-	id: String,
-	req: UpdateChallengeInfoRequest
+        &self,
+        id: ChallengeId,
+        req: UpdateChallengeInfoRequest,
     ) -> Result<UpdateChallengeInfoResponse, ()>;
 }
-
-
