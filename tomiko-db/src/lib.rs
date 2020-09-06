@@ -14,11 +14,10 @@ pub struct DbStore {
 
 impl DbStore {
     pub async fn acquire(db_uri: &str) -> Result<Self, ()> {
-        use sqlx::sqlite::SqlitePoolOptions;
-        let pool = SqlitePoolOptions::new()
-            .max_connections(5)
-            .connect(db_uri)
-            .await
+        let pool = SqlitePool::builder()
+            .max_size(5)
+            .build(db_uri)
+	    .await
             .map_err(|_| ())?;
 
         Ok(Self { pool })

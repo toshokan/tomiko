@@ -20,5 +20,5 @@ tracing-subscriber = "^0.2"
 clap = "3.0.0-beta.1"
 dotenv = "0.15"
 tokio = { version = "^0.2", features = ["macros"] }
-sqlx = { version = "0.4.0-beta.1", default-features = false, features = ["sqlite", "runtime-tokio"]}
+sqlx = { version = "0.3.5", default-features = false, features = ["sqlite", "runtime-tokio"]}
 serde = { version = "^1", features = ["derive"] }
