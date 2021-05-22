@@ -1,8 +1,8 @@
 use clap::Clap;
 use sqlx::sqlite::SqlitePool;
 
-use tomiko_core::types::ClientSecret;
-use tomiko_util::hash::HashingService;
+use tomiko::core::types::ClientSecret;
+use tomiko::util::hash::HashingService;
 
 #[derive(Clap)]
 #[clap(version = env!("CARGO_PKG_VERSION"), author = env!("CARGO_PKG_AUTHORS"))]

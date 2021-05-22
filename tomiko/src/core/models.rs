@@ -1,4 +1,4 @@
-use crate::types::*;
+use super::types::*;
 
 #[derive(Debug)]
 pub struct Client {

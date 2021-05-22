@@ -1,12 +1,8 @@
-#[cfg(feature = "serde-traits")]
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 #[derive(Debug)]
-#[cfg_attr(
-    feature = "serde-traits",
-    derive(serde::Deserialize),
-    serde(rename_all = "snake_case")
-)]
+#[derive(serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
 pub enum GrantType {
     AuthorizationCode,
 }
@@ -33,7 +29,6 @@ impl Scope {
     }
 }
 
-#[cfg(feature = "serde-traits")]
 impl<'de> Deserialize<'de> for Scope {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
@@ -44,7 +39,6 @@ impl<'de> Deserialize<'de> for Scope {
     }
 }
 
-#[cfg(feature = "serde-traits")]
 impl Serialize for Scope {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
@@ -56,39 +50,27 @@ impl Serialize for Scope {
 }
 
 #[derive(Debug)]
-#[cfg_attr(
-    feature = "serde-traits",
-    derive(serde::Deserialize),
-    serde(rename_all = "snake_case")
-)]
+#[derive(serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
 pub enum ResponseType {
     Code,
 }
 
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
-#[cfg_attr(
-    feature = "serde-traits",
-    derive(serde::Serialize),
-    derive(serde::Deserialize),
-    serde(transparent)
-)]
+#[derive(serde::Deserialize)]
+#[derive(serde::Serialize)]
+#[serde(transparent)]
 pub struct ClientId(pub String); // TODO
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-#[cfg_attr(
-    feature = "serde-traits",
-    derive(serde::Serialize),
-    derive(serde::Deserialize),
-    serde(transparent)
-)]
+#[derive(serde::Deserialize, serde::Serialize)]
+#[serde(rename_all = "snake_case")]
+#[serde(transparent)]
 pub struct RedirectUri(pub String); // TODO
 
 #[derive(Debug)]
-#[cfg_attr(
-    feature = "serde-traits",
-    derive(serde::Deserialize),
-    serde(transparent)
-)]
+#[derive(serde::Deserialize)]
+#[serde(transparent)]
 pub struct ClientSecret(pub String); // TODO
 
 #[derive(Debug, Eq, PartialEq)]
@@ -101,21 +83,13 @@ impl HashedClientSecret {
 }
 
 #[derive(Debug)]
-#[cfg_attr(
-    feature = "serde-traits",
-    derive(serde::Serialize),
-    derive(serde::Deserialize),
-    serde(transparent)
-)]
+#[derive(serde::Deserialize, serde::Serialize)]
+#[serde(transparent)]
 pub struct AuthCode(pub String); // TODO
 
 #[derive(Debug, Clone)]
-#[cfg_attr(
-    feature = "serde-traits",
-    derive(serde::Serialize),
-    derive(serde::Deserialize),
-    serde(transparent)
-)]
+#[derive(serde::Deserialize, serde::Serialize)]
+#[serde(transparent)]
 pub struct ChallengeId(pub String);
 
 impl std::str::FromStr for ChallengeId {

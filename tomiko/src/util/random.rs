@@ -1,4 +1,4 @@
-use tomiko_core::types::{AuthCode, ChallengeId};
+use crate::core::types::{AuthCode, ChallengeId};
 
 pub trait FromRandom {
     fn from_random() -> Self;

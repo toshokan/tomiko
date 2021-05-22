@@ -1,17 +1,17 @@
-use tomiko_auth::{
+use tomiko::auth::{
     AccessTokenError, AccessTokenErrorKind, AccessTokenResponse, AuthorizationError,
     AuthorizationRequest, AuthorizationResponse, ChallengeInfo, ClientCredentials, Store,
     TokenRequest, UpdateChallengeInfoRequest, UpdateChallengeInfoResponse,
 };
-use tomiko_core::models::{AuthCodeData, Client};
-use tomiko_core::types::{AuthCode, ChallengeId, ClientId, RedirectUri, Scope};
-use tomiko_util::{hash::HashingService, random::FromRandom};
+use tomiko::core::models::{AuthCodeData, Client};
+use tomiko::core::types::{AuthCode, ChallengeId, ClientId, RedirectUri, Scope};
+use tomiko::util::{hash::HashingService, random::FromRandom};
 
 use async_trait::async_trait;
 use jsonwebtoken::EncodingKey;
 use std::sync::Arc;
-use tomiko_db::DbStore;
-use tomiko_http::server::Server;
+use tomiko::db::DbStore;
+use tomiko::http::server::Server;
 
 #[derive(Debug)]
 struct OAuth2Provider {
@@ -72,7 +72,7 @@ impl OAuth2Provider {
     }
 }
 
-use tomiko_auth::{
+use tomiko::auth::{
     MaybeChallenge::{self, *},
     Provider,
 };
@@ -100,7 +100,7 @@ impl Provider for OAuth2Provider {
                 };
 
                 let id = self.store.store_challenge_info(info).await.unwrap();
-                let challenge = tomiko_auth::Challenge { id };
+                let challenge = tomiko::auth::Challenge { id };
 
                 Ok(Challenge(challenge))
 
@@ -183,7 +183,7 @@ impl Provider for OAuth2Provider {
         }
     }
 
-    async fn get_challenge_info(&self, id: ChallengeId) -> Option<tomiko_auth::ChallengeInfo> {
+    async fn get_challenge_info(&self, id: ChallengeId) -> Option<tomiko::auth::ChallengeInfo> {
         let challenge = self.store.get_challenge_info(id).await.ok()?;
         challenge
     }
@@ -192,7 +192,7 @@ impl Provider for OAuth2Provider {
         &self,
         id: ChallengeId,
         req: UpdateChallengeInfoRequest,
-    ) -> Result<tomiko_auth::UpdateChallengeInfoResponse, ()> {
+    ) -> Result<tomiko::auth::UpdateChallengeInfoResponse, ()> {
         use UpdateChallengeInfoRequest::*;
         use UpdateChallengeInfoResponse::RedirectTo;
 

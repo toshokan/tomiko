@@ -1,12 +1,12 @@
 use async_trait::async_trait;
 use std::time::SystemTime;
-use tomiko_core::models::{AuthCodeData, Client};
-use tomiko_core::types::{
+use crate::core::models::{AuthCodeData, Client};
+use crate::core::types::{
     AuthCode, ChallengeId, ClientId, ClientSecret, HashedClientSecret, RedirectUri, Scope,
 };
 
 #[derive(Debug)]
-#[cfg_attr(feature = "serde-traits", derive(serde::Deserialize))]
+#[derive(serde::Deserialize)]
 pub struct AuthorizationCodeGrantAuthorizationRequest {
     pub client_id: ClientId,
     pub redirect_uri: RedirectUri,
@@ -15,7 +15,7 @@ pub struct AuthorizationCodeGrantAuthorizationRequest {
 }
 
 #[derive(Debug)]
-#[cfg_attr(feature = "serde-traits", derive(serde::Deserialize))]
+#[derive(serde::Deserialize)]
 pub struct ImplicitGrantAuthorizationRequest {
     client_id: ClientId,
     redirect_uri: RedirectUri,
@@ -24,27 +24,24 @@ pub struct ImplicitGrantAuthorizationRequest {
 }
 
 #[derive(Debug)]
-#[cfg_attr(
-    feature = "serde-traits",
-    derive(serde::Deserialize),
-    serde(tag = "response_type")
-)]
+#[derive(serde::Deserialize)]
+#[serde(tag = "response_type")]
 pub enum AuthorizationRequest {
-    #[cfg_attr(feature = "serde-traits", serde(rename = "code"))]
+    #[serde(rename = "code")]
     AuthorizationCode(AuthorizationCodeGrantAuthorizationRequest),
-    #[cfg_attr(feature = "serde-traits", serde(rename = "token"))]
+    #[serde(rename = "token")]
     Implicit(ImplicitGrantAuthorizationRequest),
 }
 
 #[derive(Debug)]
-#[cfg_attr(feature = "serde-traits", derive(serde::Deserialize))]
+#[derive(serde::Deserialize)]
 pub struct AuthenticationCodeTokenRequest {
     pub redirect_uri: RedirectUri,
     pub code: AuthCode,
 }
 
 #[derive(Debug)]
-#[cfg_attr(feature = "serde-traits", derive(serde::Deserialize))]
+#[derive(serde::Deserialize)]
 pub struct ResourceOwnerPasswordCredentialsTokenRequest {
     username: String,
     password: String,
@@ -52,34 +49,28 @@ pub struct ResourceOwnerPasswordCredentialsTokenRequest {
 }
 
 #[derive(Debug)]
-#[cfg_attr(feature = "serde-traits", derive(serde::Deserialize))]
+#[derive(serde::Deserialize)]
 pub struct ClientCredentialsTokenRequest {
     pub scope: Scope,
 }
 
 #[derive(Debug)]
-#[cfg_attr(
-    feature = "serde-traits",
-    derive(serde::Deserialize),
-    serde(tag = "grant_type")
-)]
+#[derive(serde::Deserialize)]
+#[serde(tag = "grant_type")]
 pub enum TokenRequest {
-    #[cfg_attr(feature = "serde-traits", serde(rename = "authorization_code"))]
+    #[serde(rename = "authorization_code")]
     AuthenticationCode(AuthenticationCodeTokenRequest),
-    #[cfg_attr(feature = "serde-traits", serde(rename = "password"))]
+    #[serde(rename = "password")]
     ResourceOwnerPasswordCredentials(ResourceOwnerPasswordCredentialsTokenRequest),
-    #[cfg_attr(feature = "serde-traits", serde(rename = "client_credentials"))]
+    #[serde(rename = "client_credentials")]
     ClientCredentials(ClientCredentialsTokenRequest),
 }
 
 #[derive(Debug)]
-#[cfg_attr(feature = "serde-traits", derive(serde::Serialize))]
+#[derive(serde::Serialize)]
 pub struct AuthorizationResponse {
     code: AuthCode,
-    #[cfg_attr(
-        feature = "serde-traits",
-        serde(skip_serializing_if = "Option::is_none")
-    )]
+    #[serde(skip_serializing_if = "Option::is_none")]
     state: Option<String>,
 }
 
@@ -90,10 +81,10 @@ impl AuthorizationResponse {
 }
 
 #[derive(Debug)]
-#[cfg_attr(feature = "serde-traits", derive(serde::Serialize))]
+#[derive(serde::Serialize)]
 pub struct TokenType(String);
 
-#[cfg_attr(feature = "serde-traits", derive(serde::Serialize))]
+#[derive(serde::Serialize)]
 #[derive(Debug)]
 pub struct AccessTokenResponse {
     pub access_token: String,
@@ -104,11 +95,8 @@ pub struct AccessTokenResponse {
 }
 
 #[derive(Debug, Clone)]
-#[cfg_attr(
-    feature = "serde-traits",
-    derive(serde::Serialize),
-    serde(rename_all = "snake_case")
-)]
+#[derive(serde::Serialize)]
+#[serde(rename_all = "snake_case")]
 pub enum AuthorizationErrorKind {
     InvalidRequest,
     UnauthorizedClient,
@@ -120,26 +108,17 @@ pub enum AuthorizationErrorKind {
 }
 
 #[derive(Debug, Clone)]
-#[cfg_attr(
-    feature = "serde-traits",
-    derive(serde::Serialize),
-    serde(rename_all = "snake_case")
-)]
+#[derive(serde::Serialize)]
+#[serde(rename_all = "snake_case")]
 pub struct AuthorizationError {
-    #[cfg_attr(feature = "serde-traits", serde(rename = "error"))]
+    #[serde(rename = "error")]
     pub kind: AuthorizationErrorKind,
-    #[cfg_attr(feature = "serde-traits", serde(rename = "error_description"))]
+    #[serde(rename = "error_description")]
     pub description: Option<String>,
-    #[cfg_attr(
-        feature = "serde-traits",
-        serde(rename = "error_uri"),
-        serde(skip_serializing_if = "Option::is_none")
-    )]
+    #[serde(rename = "error_uri")]
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub uri: Option<String>,
-    #[cfg_attr(
-        feature = "serde-traits",
-        serde(skip_serializing_if = "Option::is_none")
-    )]
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub state: Option<String>,
 }
 
@@ -165,11 +144,8 @@ impl AuthorizationError {
 }
 
 #[derive(Debug, Clone)]
-#[cfg_attr(
-    feature = "serde-traits",
-    derive(serde::Serialize),
-    serde(rename_all = "snake_case")
-)]
+#[derive(serde::Serialize)]
+#[serde(rename_all = "snake_case")]
 pub enum AccessTokenErrorKind {
     InvalidRequest,
     InvalidClient,
@@ -180,21 +156,15 @@ pub enum AccessTokenErrorKind {
 }
 
 #[derive(Debug, Clone)]
-#[cfg_attr(
-    feature = "serde-traits",
-    derive(serde::Serialize),
-    serde(rename_all = "snake_case")
-)]
+#[derive(serde::Serialize)]
+#[serde(rename_all = "snake_case")]
 pub struct AccessTokenError {
-    #[cfg_attr(feature = "serde-traits", serde(rename = "error"))]
+    #[serde(rename = "error")]
     pub kind: AccessTokenErrorKind,
-    #[cfg_attr(feature = "serde-traits", serde(rename = "error_description"))]
+    #[serde(rename = "error_description")]
     pub description: Option<String>,
-    #[cfg_attr(
-        feature = "serde-traits",
-        serde(rename = "error_uri"),
-        serde(skip_serializing_if = "Option::is_none")
-    )]
+    #[serde(rename = "error_uri")]
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub uri: Option<String>,
 }
 
@@ -209,20 +179,20 @@ impl From<AccessTokenErrorKind> for AccessTokenError {
 }
 
 #[derive(Debug)]
-#[cfg_attr(feature = "serde-traits", derive(serde::Deserialize))]
+#[derive(serde::Deserialize)]
 pub struct ClientCredentials {
     pub client_id: ClientId,
     pub client_secret: ClientSecret,
 }
 
 #[derive(Debug)]
-#[cfg_attr(feature = "serde-traits", derive(serde::Serialize))]
+#[derive(serde::Serialize)]
 pub struct Challenge {
     pub id: ChallengeId,
 }
 
 #[derive(Debug)]
-#[cfg_attr(feature = "serde-traits", derive(serde::Serialize))]
+#[derive(serde::Serialize)]
 pub struct ChallengeInfo {
     pub id: ChallengeId,
     pub client_id: ClientId,
@@ -232,14 +202,14 @@ pub struct ChallengeInfo {
 }
 
 #[derive(Debug)]
-#[cfg_attr(feature = "serde-traits", derive(serde::Deserialize))]
+#[derive(serde::Deserialize)]
 pub enum UpdateChallengeInfoRequest {
     Accept,
     Reject,
 }
 
 #[derive(Debug)]
-#[cfg_attr(feature = "serde-traits", derive(serde::Serialize))]
+#[derive(serde::Serialize)]
 pub enum UpdateChallengeInfoResponse {
     RedirectTo(RedirectUri),
 }

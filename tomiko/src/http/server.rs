@@ -1,10 +1,10 @@
-use tomiko_auth::{ClientCredentials, Provider, UpdateChallengeInfoRequest};
-use tomiko_core::types::ChallengeId;
+use crate::auth::{ClientCredentials, Provider, UpdateChallengeInfoRequest};
+use crate::core::types::ChallengeId;
 
 use std::sync::Arc;
 use warp::{Filter, Rejection};
 
-use crate::encoding::{error::handle_reject, reply::form_encode, WithCredentials};
+use super::encoding::{error::handle_reject, reply::form_encode, WithCredentials};
 use http_basic_auth::Credential as BasicCredentials;
 
 #[derive(Debug)]
@@ -41,7 +41,7 @@ impl<P: Provider + Send + Sync + 'static> Server<P> {
             .and(with_provider.clone())
             .and(warp::filters::query::query())
             .and_then(|provider: Arc<P>, req| async move {
-                use tomiko_auth::{ChallengeExt, MaybeChallenge::*};
+                use crate::auth::{ChallengeExt, MaybeChallenge::*};
                 use warp::reply::Reply;
 
                 let result = provider.authorization_request(req).await;

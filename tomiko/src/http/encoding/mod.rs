@@ -2,8 +2,8 @@ pub mod error;
 pub mod reply;
 
 use http_basic_auth::Credential as BasicCredentials;
-use tomiko_auth::ClientCredentials;
-use tomiko_core::types::{ClientId, ClientSecret};
+use crate::auth::ClientCredentials;
+use crate::core::types::{ClientId, ClientSecret};
 
 #[derive(serde::Deserialize)]
 pub struct WithCredentials<T> {

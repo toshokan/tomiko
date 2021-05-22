@@ -2,9 +2,9 @@
 
 members = [
 	"tomiko",
-	"tomiko-auth",
-	"tomiko-core",
-	"tomiko-db",
-	"tomiko-http",
-	"tomiko-util"
+	# "tomiko-auth",
+	# "tomiko-core",
+	# "tomiko-db",
+	# "tomiko-http",
+	# "tomiko-util"
 ]

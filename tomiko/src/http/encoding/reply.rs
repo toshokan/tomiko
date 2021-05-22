@@ -1,4 +1,4 @@
-use crate::encoding::error::AuthRejection;
+use super::error::AuthRejection;
 use warp::reply::{Reply, Response};
 use warp::Rejection;
 

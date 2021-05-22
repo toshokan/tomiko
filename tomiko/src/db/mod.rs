@@ -1,8 +1,8 @@
 #![allow(clippy::toplevel_ref_arg)]
 
-use tomiko_auth::{ChallengeInfo, Store};
-use tomiko_core::models::{AuthCodeData, Client, RedirectRecord};
-use tomiko_core::types::{AuthCode, ChallengeId, ClientId, HashedClientSecret, RedirectUri, Scope};
+use crate::auth::{ChallengeInfo, Store};
+use crate::core::models::{AuthCodeData, Client, RedirectRecord};
+use crate::core::types::{AuthCode, ChallengeId, ClientId, HashedClientSecret, RedirectUri, Scope};
 
 use sqlx::sqlite::SqlitePool;
 use std::time::SystemTime;
@@ -192,7 +192,7 @@ impl Store for DbStore {
     async fn get_challenge_info(
         &self,
         id: ChallengeId,
-    ) -> Result<Option<tomiko_auth::ChallengeInfo>, ()> {
+    ) -> Result<Option<crate::auth::ChallengeInfo>, ()> {
         let result = sqlx::query!("SELECT * FROM challenges WHERE id = ?", id.0)
             .fetch_optional(&self.pool)
             .await

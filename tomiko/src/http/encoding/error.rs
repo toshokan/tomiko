@@ -1,4 +1,4 @@
-use tomiko_auth::{AccessTokenError, AuthorizationError};
+use crate::auth::{AccessTokenError, AuthorizationError};
 use warp::{Rejection, Reply};
 
 #[derive(Debug, Clone, serde::Serialize)]

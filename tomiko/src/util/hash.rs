@@ -1,4 +1,4 @@
-use tomiko_core::types::{ClientId, ClientSecret, HashedClientSecret};
+use crate::core::types::{ClientId, ClientSecret, HashedClientSecret};
 
 #[derive(Debug)]
 pub struct HashedClientCredentials {
