@@ -3,8 +3,8 @@ use tomiko::auth::{
     AuthorizationRequest, AuthorizationResponse, ChallengeInfo, ClientCredentials, Store,
     TokenRequest, UpdateChallengeInfoRequest, UpdateChallengeInfoResponse,
 };
-use tomiko::core::models::{AuthCodeData, Client};
-use tomiko::core::types::{AuthCode, ChallengeId, ClientId, RedirectUri, Scope};
+use tomiko::core::models::Client;
+use tomiko::core::types::{ChallengeId, ClientId, RedirectUri, Scope};
 use tomiko::util::{hash::HashingService, random::FromRandom};
 
 use async_trait::async_trait;
