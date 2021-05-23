@@ -22,6 +22,7 @@ fn random_string(size: usize) -> String {
     let s: String = rand::thread_rng()
         .sample_iter(rand::distributions::Alphanumeric)
         .take(size)
+        .map(|b| b as char)
         .collect();
     base64::encode_config(s, base64::URL_SAFE_NO_PAD)
 }

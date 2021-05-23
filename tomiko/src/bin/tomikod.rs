@@ -60,15 +60,14 @@ impl OAuth2Provider {
 
     async fn start_clean_up_worker(&self) -> Result<(), ()> {
         use std::time::Duration;
-        use tokio::{stream::StreamExt, time::interval};
+        use tokio::time::interval;
 
         let mut interval = interval(Duration::from_secs(15));
 
-        while let Some(_x) = interval.next().await {
-            self.store.clean_up().await?
-        }
-
-        Ok(())
+	loop {
+	    interval.tick().await;
+	    self.store.clean_up().await?
+	}
     }
 }
 

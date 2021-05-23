@@ -72,8 +72,7 @@ struct DeleteClientScope {
 }
 
 async fn get_database(uri: &str) -> SqlitePool {
-    let pool = SqlitePool::builder()
-        .build(uri)
+    let pool = SqlitePool::connect(uri)
         .await
         .expect("Failed to connect to database");
     pool

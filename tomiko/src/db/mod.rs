@@ -14,9 +14,7 @@ pub struct DbStore {
 
 impl DbStore {
     pub async fn acquire(db_uri: &str) -> Result<Self, ()> {
-        let pool = SqlitePool::builder()
-            .max_size(5)
-            .build(db_uri)
+        let pool = SqlitePool::connect(db_uri)
             .await
             .map_err(|_| ())?;
 
@@ -173,13 +171,14 @@ impl Store for DbStore {
 
     async fn store_challenge_info(&self, info: ChallengeInfo) -> Result<ChallengeId, ()> {
         let id = info.id.clone();
+	let scopes = info.scope.as_joined();
 
         sqlx::query!(
             "INSERT INTO challenges(id, client_id, uri, scope, state) VALUES (?,?,?,?,?)",
             info.id.0,
             info.client_id.0,
             info.uri.0,
-            info.scope.as_joined(),
+            scopes,
             info.state
         )
         .execute(&self.pool)
