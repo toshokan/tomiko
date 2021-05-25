@@ -47,7 +47,7 @@ impl<P: Provider + Send + Sync + 'static> Server<P> {
                 let result = provider.authorization_request(req).await;
                 match result.transpose() {
                     Challenge(c) => {
-                        let url = format!("http://localhost:8001/login?challenge-id={}", c.id.0);
+                        let url = format!("http://localhost:8002/login?challenge-id={}", c.id.0);
                         Ok(warp::http::Response::builder()
                             .header("Location", url)
                             .status(307)
