@@ -211,6 +211,7 @@ pub enum UpdateChallengeInfoRequest {
 #[derive(Debug)]
 #[derive(serde::Serialize)]
 pub enum UpdateChallengeInfoResponse {
+    AuthResponse(AuthorizationResponse),
     RedirectTo(RedirectUri),
 }
 
