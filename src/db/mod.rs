@@ -16,7 +16,10 @@ impl DbStore {
     pub async fn acquire(db_uri: &str) -> Result<Self, ()> {
         let pool = SqlitePool::connect(db_uri)
             .await
-            .map_err(|_| ())?;
+            .map_err(|e| {
+		dbg!(e);
+		()
+	    })?;
 
         Ok(Self { pool })
     }
