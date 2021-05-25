@@ -1,8 +1,8 @@
-use tomiko::auth::{
+use tomiko::{auth::{
     AccessTokenError, AccessTokenErrorKind, AccessTokenResponse, AuthorizationError,
     AuthorizationRequest, AuthorizationResponse, ChallengeInfo, ClientCredentials, Store,
     TokenRequest, UpdateChallengeInfoRequest, UpdateChallengeInfoResponse,
-};
+}, core::{models::AuthCodeData, types::AuthCode}};
 use tomiko::core::models::Client;
 use tomiko::core::types::{ChallengeId, ClientId, RedirectUri, Scope};
 use tomiko::util::{hash::HashingService, random::FromRandom};
@@ -103,27 +103,7 @@ impl Provider for OAuth2Provider {
 
                 Ok(Challenge(challenge))
 
-                // let code = AuthCode::from_random();
-
-                // let data = AuthCodeData {
-                //     client_id: req.client_id,
-                //     code,
-                //     state: req.state,
-                //     redirect_uri: req.redirect_uri,
-                //     scope: Some(req.scope), // TODO
-                // };
-
-                // let expiry = std::time::SystemTime::now()
-                //     .checked_add(std::time::Duration::from_secs(10 * 60))
-                //     .unwrap();
-
-                // let data = self
-                //     .store
-                //     .store_code(data, expiry)
-                //     .await
-                //     .map_err(|_| AuthorizationError::server_error(&state))?;
-
-                // let response = AuthorizationResponse::new(data.code, data.state);
+                
                 // Ok(Accept(response))
             }
             _ => unimplemented!(),
@@ -193,20 +173,44 @@ impl Provider for OAuth2Provider {
         req: UpdateChallengeInfoRequest,
     ) -> Result<tomiko::auth::UpdateChallengeInfoResponse, ()> {
         use UpdateChallengeInfoRequest::*;
-        use UpdateChallengeInfoResponse::RedirectTo;
+        use UpdateChallengeInfoResponse::*;;
 
         let info = self.store.get_challenge_info(id).await?;
-
-        let uri = if let Some(info) = info {
+	
+        let resp = if let Some(info) = info {
+	    let state = info.state.clone();
             match req {
-                Accept => info.uri,
-                Reject => RedirectUri("localhost/failure".to_string()),
+                Accept => {
+		    let code = AuthCode::from_random();
+
+                    let data = AuthCodeData {
+                        client_id: info.client_id,
+                        code,
+                        state: info.state,
+                        redirect_uri: info.uri,
+                        scope: Some(info.scope),
+                    };
+
+                    let expiry = std::time::SystemTime::now()
+                        .checked_add(std::time::Duration::from_secs(10 * 60))
+                        .unwrap();
+
+                    let data = self
+                        .store
+                        .store_code(data, expiry)
+                        .await
+                        .map_err(|_| AuthorizationError::server_error(&state))
+                        .expect("Bad data");
+
+                    let response = AuthorizationResponse::new(data.code, data.state);
+		    AuthResponse(response)
+		},
+                Reject => RedirectTo(RedirectUri("http://localhost:8002/failure".to_string())),
             }
         } else {
-            RedirectUri("localhost/not_found".to_string())
+            RedirectTo(RedirectUri("http://localhost:8002/not_found".to_string()))
         };
-
-        Ok(RedirectTo(uri))
+	Ok(resp)
     }
 }
 
@@ -273,7 +277,6 @@ async fn tomikod(config: Config) -> Option<()> {
     let store = DbStore::acquire(&config.database_url).await.ok()?;
     let hasher = HashingService::with_secret_key(config.hash_secret);
     let token = TokenService::new(&config.jwt_private_key_file);
-
     let provider = Arc::new(OAuth2Provider {
         store,
         hasher,
@@ -284,6 +287,7 @@ async fn tomikod(config: Config) -> Option<()> {
         let provider = Arc::clone(&provider);
         tokio::spawn(async move { provider.start_clean_up_worker().await });
     };
+
 
     let server = Server::new(provider);
     server.serve().await;
