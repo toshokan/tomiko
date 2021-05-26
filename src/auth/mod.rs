@@ -68,13 +68,22 @@ pub enum TokenRequest {
 
 #[derive(Debug)]
 #[derive(serde::Serialize)]
-pub struct AuthorizationResponse {
+#[serde(untagged)]
+pub enum AuthorizationResponse {
+    AuthenticationCode(AuthenticationCodeResponse),
+    Implicit(AccessTokenResponse)
+}
+
+#[derive(Debug)]
+#[derive(serde::Serialize)]
+pub struct AuthenticationCodeResponse {
     code: AuthCode,
     #[serde(skip_serializing_if = "Option::is_none")]
     state: Option<String>,
 }
 
-impl AuthorizationResponse {
+
+impl AuthenticationCodeResponse {
     pub fn new(code: AuthCode, state: Option<String>) -> Self {
         Self { code, state }
     }

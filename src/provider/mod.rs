@@ -1,4 +1,4 @@
-use crate::{auth::{AccessTokenError, AccessTokenErrorKind, AccessTokenResponse, AuthorizationError, AuthorizationRequest, AuthorizationResponse, BadRedirect, ChallengeInfo, ClientCredentials, MaybeRedirect, Redirect, Store, TokenRequest, UpdateChallengeInfoRequest, UpdateChallengeInfoResponse}, core::{models::AuthCodeData, types::AuthCode}};
+use crate::{auth::{AccessTokenError, AccessTokenErrorKind, AccessTokenResponse, AuthenticationCodeResponse, AuthorizationError, AuthorizationRequest, AuthorizationResponse, BadRedirect, ChallengeInfo, ClientCredentials, MaybeRedirect, Redirect, Store, TokenRequest, UpdateChallengeInfoRequest, UpdateChallengeInfoResponse}, core::{models::AuthCodeData, types::AuthCode}};
 use crate::core::models::Client;
 use crate::core::types::{ChallengeId, ClientId, RedirectUri, Scope};
 use crate::util::{hash::HashingService, random::FromRandom};
@@ -200,7 +200,7 @@ impl OAuth2Provider {
 		    .await
 		    .map_err(|_| AuthorizationError::server_error(&state))?;
 		
-		Ok(AuthorizationResponse::new(code, state))
+		Ok(AuthorizationResponse::AuthenticationCode(AuthenticationCodeResponse::new(code, state)))
 	    }).await
 	} else {
 	    unimplemented!()
