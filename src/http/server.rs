@@ -1,5 +1,5 @@
-use crate::auth::{ClientCredentials, Provider, UpdateChallengeInfoRequest};
-use crate::core::types::ChallengeId;
+use crate::auth::{ClientCredentials, Redirect, UpdateChallengeInfoRequest};
+use crate::core::types::{RedirectUri, ChallengeId};
 
 use std::sync::Arc;
 use warp::{Filter, Rejection};
@@ -44,22 +44,11 @@ impl Server {
             .and(with_provider.clone())
             .and(warp::filters::query::query())
             .and_then(|provider: Arc<OAuth2Provider>, req| async move {
-                use crate::auth::MaybeChallenge::*;
 		use warp::reply::Reply;
 
                 let result = provider.authorization_request(req).await;
                 match result {
-                    Ok(Challenge(c)) => {
-                        let url = format!("http://localhost:8002/login?challenge-id={}", c.id.0);
-                        Ok(warp::http::Response::builder()
-                            .header("Location", url)
-                            .status(307)
-                            .body(warp::hyper::Body::empty())
-                            .unwrap())
-                    }
-                    Ok(Accept(result)) => {
-			Ok(result.into_response())
-		    },
+                    Ok(x) => Ok(x.into_response()),
 		    Err(_e) => {
 			Err(warp::reject())
 		    }

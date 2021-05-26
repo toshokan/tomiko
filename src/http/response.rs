@@ -1,5 +1,5 @@
-use crate::auth::{AuthorizationResponse, Redirect};
-use crate::core::types::RedirectUri;
+use crate::auth::{AuthorizationResponse, MaybeChallenge, Redirect};
+use crate::core::types::{ChallengeId, RedirectUri};
 use warp::reply::{Reply, Response};
 use url::Url;
 
@@ -19,5 +19,27 @@ impl<T: serde::Serialize + Send> Reply for Redirect<T> {
 	    .status(307)
 	    .body(warp::hyper::Body::empty())
 	    .unwrap()
+    }
+}
+
+impl<T: Reply> Reply for MaybeChallenge<T> {
+    fn into_response(self) -> Response {
+	match self {
+	    Self::Challenge(c) => {
+		#[derive(serde::Serialize)]
+		struct ChallengeRef {
+		    #[serde(rename = "challenge-id")]
+		    id: ChallengeId
+		}
+		let login_uri = RedirectUri("http://localhost:8002/login".to_string());
+		Redirect::new(
+		    login_uri,
+		    ChallengeRef {
+			id: c.id
+		    }
+		).into_response()
+	    },
+	    Self::Accept(r) => r.into_response()
+	}
     }
 }
