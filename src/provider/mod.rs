@@ -177,7 +177,7 @@ impl OAuth2Provider {
 	    Self::with_redirect(info.uri.clone(), move || async move {
 		let state = info.state.clone();
 		if !info.ok {
-		    Err(AuthorizationError::server_error(&state))?;
+		    Err(AuthorizationError::access_denied(&state))?;
 		}
 		
 		let code = AuthCode::from_random();

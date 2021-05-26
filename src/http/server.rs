@@ -1,8 +1,9 @@
-use crate::auth::{ClientCredentials, Redirect, UpdateChallengeInfoRequest};
-use crate::core::types::{RedirectUri, ChallengeId};
+use crate::auth::{ClientCredentials, UpdateChallengeInfoRequest};
+use crate::core::types::ChallengeId;
 
 use std::sync::Arc;
 use warp::{Filter, Rejection};
+use crate::http::encoding::error::AuthRejection;
 
 use super::encoding::{error::handle_reject, reply::form_encode, WithCredentials};
 use http_basic_auth::Credential as BasicCredentials;
@@ -49,9 +50,7 @@ impl Server {
                 let result = provider.authorization_request(req).await;
                 match result {
                     Ok(x) => Ok(x.into_response()),
-		    Err(_e) => {
-			Err(warp::reject())
-		    }
+		    Err(e) => Err(warp::reject::custom(AuthRejection::from(e)))
                 }
             });
 
@@ -99,7 +98,7 @@ impl Server {
 		
 		let result = provider.get_challenge_result(id).await
 		    .map(|e| e.into_response())
-		    .map_err(|_| warp::reject());
+		    .map_err(|e| warp::reject::custom(AuthRejection::from(e)));
 		result
 	    });
 

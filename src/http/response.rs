@@ -1,4 +1,4 @@
-use crate::auth::{AuthorizationResponse, MaybeChallenge, Redirect};
+use crate::auth::{MaybeChallenge, Redirect};
 use crate::core::types::{ChallengeId, RedirectUri};
 use warp::reply::{Reply, Response};
 use url::Url;

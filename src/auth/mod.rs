@@ -94,6 +94,7 @@ pub struct AccessTokenResponse {
     pub scope: Option<Scope>,
 }
 
+#[derive(Debug, Clone)]
 pub struct BadRedirect;
 
 #[derive(Debug)]
@@ -145,6 +146,7 @@ macro_rules! make_helper {
 
 impl AuthorizationError {
     make_helper!(server_error, AuthorizationErrorKind::ServerError);
+    make_helper!(access_denied, AuthorizationErrorKind::AccessDenied);
     make_helper!(
         unauthorized_client,
         AuthorizationErrorKind::UnauthorizedClient
