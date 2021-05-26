@@ -4,3 +4,4 @@ pub mod http;
 pub mod db;
 pub mod util;
 pub mod oidc;
+pub mod provider;

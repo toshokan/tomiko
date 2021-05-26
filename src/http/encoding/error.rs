@@ -1,33 +1,37 @@
-use crate::auth::{AccessTokenError, AuthorizationError};
+use crate::auth::{AccessTokenError, AuthorizationError, Redirect};
 use warp::{Rejection, Reply};
 
-#[derive(Debug, Clone, serde::Serialize)]
-#[serde(untagged)]
+#[derive(Debug, Clone)]
 pub enum AuthRejection {
-    Authorization(AuthorizationError),
+    Authorization(Redirect<AuthorizationError>),
     AccessToken(AccessTokenError),
 }
 
 impl warp::reject::Reject for AuthRejection {}
 
-impl From<AuthorizationError> for AuthRejection {
-    fn from(error: AuthorizationError) -> Self {
-        Self::Authorization(error)
+impl From<Redirect<AuthorizationError>> for AuthRejection {
+    fn from(error: Redirect<AuthorizationError>) -> Self {
+	Self::Authorization(error)
     }
 }
 
 impl From<AccessTokenError> for AuthRejection {
     fn from(error: AccessTokenError) -> Self {
-        Self::AccessToken(error)
+	Self::AccessToken(error)
     }
 }
 
 pub async fn handle_reject(err: Rejection) -> Result<impl Reply, Rejection> {
     match err.find::<AuthRejection>() {
         Some(e) => {
-            let response = warp::reply::json(e);
-            let reply = warp::reply::with_status(response, warp::http::StatusCode::BAD_REQUEST);
-            Ok(reply)
+	    let e = e.clone();
+	    match e {
+		AuthRejection::Authorization(e) => Ok(e.into_response()),
+		AuthRejection::AccessToken(e) => {
+		    let resp = warp::reply::json(&e);
+		    Ok(warp::reply::with_status(resp, warp::http::StatusCode::BAD_REQUEST).into_response())
+		}
+	    }
         }
         _ => Err(err),
     }

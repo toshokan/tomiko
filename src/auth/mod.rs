@@ -94,6 +94,14 @@ pub struct AccessTokenResponse {
     pub scope: Option<Scope>,
 }
 
+pub struct BadRedirect;
+
+#[derive(Debug)]
+pub enum MaybeRedirect<R, D> {
+    Redirected(Redirect<R>),
+    Direct(D)
+}
+
 #[derive(Debug, Clone)]
 #[derive(serde::Serialize)]
 #[serde(rename_all = "snake_case")]
@@ -199,6 +207,7 @@ pub struct ChallengeInfo {
     pub uri: RedirectUri,
     pub scope: Scope,
     pub state: Option<String>,
+    pub ok: bool
 }
 
 #[derive(Debug)]
@@ -210,9 +219,8 @@ pub enum UpdateChallengeInfoRequest {
 
 #[derive(Debug)]
 #[derive(serde::Serialize)]
-pub enum UpdateChallengeInfoResponse {
-    AuthResponse(AuthorizationResponse),
-    RedirectTo(RedirectUri),
+pub struct UpdateChallengeInfoResponse {
+    pub redirect_to: String
 }
 
 pub enum MaybeChallenge<T> {
@@ -236,6 +244,21 @@ impl<T, E> ChallengeExt<T, E> for Result<MaybeChallenge<T>, E> {
     }
 }
 
+#[derive(Debug, Clone)]
+pub struct Redirect<T> {
+    pub uri: RedirectUri,
+    pub params: T
+}
+
+impl<T> Redirect<T> {
+    pub fn new(uri: RedirectUri, params: T) -> Self {
+	Redirect {
+	    uri,
+	    params
+	}
+    }
+}
+
 #[async_trait]
 pub trait Store {
     async fn check_client_uri(&self, client_id: &ClientId, uri: &RedirectUri) -> Result<(), ()>;
@@ -254,7 +277,8 @@ pub trait Store {
     async fn clean_up(&self) -> Result<(), ()>;
     async fn trim_client_scopes(&self, client_id: &ClientId, scope: &Scope) -> Result<Scope, ()>;
     async fn store_challenge_info(&self, info: ChallengeInfo) -> Result<ChallengeId, ()>;
-    async fn get_challenge_info(&self, id: ChallengeId) -> Result<Option<ChallengeInfo>, ()>;
+    async fn get_challenge_info(&self, id: &ChallengeId) -> Result<Option<ChallengeInfo>, ()>;
+    async fn update_challenge_info(&self, info: ChallengeInfo) -> Result<ChallengeInfo, ()>;
 }
 
 #[async_trait]
@@ -262,7 +286,7 @@ pub trait Provider {
     async fn authorization_request(
         &self,
         req: AuthorizationRequest,
-    ) -> Result<MaybeChallenge<AuthorizationResponse>, AuthorizationError>;
+    ) -> Result<MaybeChallenge<Redirect<AuthorizationResponse>>, AuthorizationError>;
     async fn access_token_request(
         &self,
         credentials: ClientCredentials,

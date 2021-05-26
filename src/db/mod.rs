@@ -177,12 +177,13 @@ impl Store for DbStore {
 	let scopes = info.scope.as_joined();
 
         sqlx::query!(
-            "INSERT INTO challenges(id, client_id, uri, scope, state) VALUES (?,?,?,?,?)",
+            "INSERT INTO challenges(id, client_id, uri, scope, state, ok) VALUES (?,?,?,?,?, ?)",
             info.id.0,
             info.client_id.0,
             info.uri.0,
             scopes,
-            info.state
+            info.state,
+	    info.ok
         )
         .execute(&self.pool)
         .await
@@ -193,7 +194,7 @@ impl Store for DbStore {
 
     async fn get_challenge_info(
         &self,
-        id: ChallengeId,
+        id: &ChallengeId,
     ) -> Result<Option<crate::auth::ChallengeInfo>, ()> {
         let result = sqlx::query!("SELECT * FROM challenges WHERE id = ?", id.0)
             .fetch_optional(&self.pool)
@@ -205,10 +206,32 @@ impl Store for DbStore {
                     uri: RedirectUri(r.uri),
                     scope: Scope::from_delimited_parts(&r.scope),
                     state: r.state,
+		    ok: r.ok,
                 })
             })
             .map_err(|_| ())?;
 
         Ok(result)
+    }
+
+    async fn update_challenge_info(&self, info: ChallengeInfo) -> Result<ChallengeInfo, ()> {
+	let id = &info.id;
+	let scopes = info.scope.as_joined();
+	let result = sqlx::query!(
+	    "UPDATE challenges SET client_id = ?, uri = ?, scope = ?, ok = ? WHERE id = ?",
+	    info.client_id.0,
+	    info.uri.0,
+	    scopes,
+	    info.ok,
+	    id.0
+	)
+	.execute(&self.pool)
+	.await
+	.map(|_| {
+		info
+	})
+	.map_err(|_| ())?;
+
+	Ok(result)
     }
 }

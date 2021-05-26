@@ -82,7 +82,7 @@ impl HashedClientSecret {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 #[derive(serde::Deserialize, serde::Serialize)]
 #[serde(transparent)]
 pub struct AuthCode(pub String); // TODO
