@@ -1,5 +1,5 @@
 use super::error::AuthRejection;
-use warp::reply::{Reply, Response};
+use warp::{reject::Reject, reply::{Reply, Response}};
 use warp::Rejection;
 
 pub struct FormEncoded {
@@ -39,4 +39,10 @@ pub fn form_encode(
     value
         .map(|v| FormEncoded::encode(v))
         .map_err(|e| warp::reject::custom::<AuthRejection>(e.into()))
+}
+
+pub fn reply<T, E>(result: Result<T, E>) -> Result<Response, Rejection>
+where T: Reply,
+      E: Into<AuthRejection> {
+    result.map(|t| t.into_response()).map_err(|e| warp::reject::custom(e.into()))
 }

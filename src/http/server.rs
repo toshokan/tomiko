@@ -5,7 +5,7 @@ use std::sync::Arc;
 use warp::{Filter, Rejection};
 use crate::http::encoding::error::AuthRejection;
 
-use super::encoding::{error::handle_reject, reply::form_encode, WithCredentials};
+use super::encoding::{error::handle_reject, reply::form_encode, reply::reply, WithCredentials};
 use http_basic_auth::Credential as BasicCredentials;
 
 use crate::provider::OAuth2Provider;
@@ -45,13 +45,8 @@ impl Server {
             .and(with_provider.clone())
             .and(warp::filters::query::query())
             .and_then(|provider: Arc<OAuth2Provider>, req| async move {
-		use warp::reply::Reply;
-
                 let result = provider.authorization_request(req).await;
-                match result {
-                    Ok(x) => Ok(x.into_response()),
-		    Err(e) => Err(warp::reject::custom(AuthRejection::from(e)))
-                }
+                reply(result)
             });
 
 	// Either a direct success or a direct error
@@ -94,12 +89,8 @@ impl Server {
 	    .and(warp::get())
 	    .and(with_provider.clone())
 	    .and_then(|id, provider: Arc<OAuth2Provider>| async move {
-		use warp::reply::Reply;
-		
-		let result = provider.get_challenge_result(id).await
-		    .map(|e| e.into_response())
-		    .map_err(|e| warp::reject::custom(AuthRejection::from(e)));
-		result
+		let result = provider.get_challenge_result(id).await;
+		reply(result)
 	    });
 
         let routes = oauth
