@@ -29,16 +29,13 @@ impl OAuth2Provider {
         &self,
         client_id: &ClientId,
         redirect_uri: &RedirectUri,
-        state: &Option<String>,
+        _state: &Option<String>,
     ) -> Result<(), MaybeRedirect<WithState<AuthorizationError>, BadRedirect>> {
         self.store
             .check_client_uri(client_id, redirect_uri)
             .await
             .map_err(|_| {
-                MaybeRedirect::Redirected(Redirect::new(
-                    redirect_uri.clone(),
-                    (AuthorizationError::unauthorized_client(), state.clone()).into(),
-                ))
+                MaybeRedirect::Direct(BadRedirect)
             })?;
 
         Ok(())
