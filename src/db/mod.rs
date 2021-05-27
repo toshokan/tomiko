@@ -1,7 +1,7 @@
 #![allow(clippy::toplevel_ref_arg)]
 
 use crate::auth::{ChallengeData, Store};
-use crate::core::models::{AuthCodeData, Client, RedirectRecord};
+use crate::core::models::{AuthCodeData, Client};
 use crate::core::types::{AuthCode, ChallengeId, ClientId, HashedClientSecret, RedirectUri, Scope};
 
 use sqlx::sqlite::SqlitePool;
@@ -28,23 +28,17 @@ impl DbStore {
 #[async_trait::async_trait]
 impl Store for DbStore {
     async fn check_client_uri(&self, client_id: &ClientId, uri: &RedirectUri) -> Result<(), ()> {
-        let result: Option<RedirectRecord> = sqlx::query!(
+        let result = sqlx::query!(
             r#"SELECT * FROM uris WHERE client_id = ? AND uri = ?"#,
             client_id.0,
             uri.0
         )
         .fetch_optional(&self.pool)
         .await
-        .map_err(|_| ())?
-        .map(|r| RedirectRecord {
-            client_id: ClientId(r.client_id),
-            uri: RedirectUri(r.uri),
-        });
+            .map_err(|_| ())
+            .map(|_| ());
+	result
 
-        if result.is_some() {
-            return Ok(());
-        }
-        Err(())
     }
     async fn store_code(&self, data: AuthCodeData, expiry: SystemTime) -> Result<AuthCodeData, ()> {
         use std::convert::TryInto;

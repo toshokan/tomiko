@@ -82,61 +82,82 @@ impl OAuth2Provider {
 impl OAuth2Provider {
     pub async fn authorization_request(
         &self,
-        raw_req: AuthorizationRequest,
+        req: AuthorizationRequest,
     ) -> Result<
         MaybeChallenge<Redirect<AuthorizationResponse>>,
         MaybeRedirect<WithState<AuthorizationError>, BadRedirect>,
     > {
-        use AuthorizationRequest::*;
+	let parts = req.as_parts();
+	self.validate_client(&parts.client_id, &parts.redirect_uri, &parts.state)
+            .await?;
+        let state = parts.state.clone();
 
-        match &raw_req {
-            AuthorizationCode(req) => {
-                self.validate_client(&req.client_id, &req.redirect_uri, &req.state)
-                    .await?;
-                let state = req.state.clone();
+        let uri = parts.redirect_uri.clone();
+        let info = ChallengeData {
+            id: ChallengeId::from_random(),
+            req: req.clone(),
+            ok: false,
+        };
 
-                let uri = req.redirect_uri.clone();
-                let info = ChallengeData {
-                    id: ChallengeId::from_random(),
-                    req: raw_req.clone(),
-                    ok: false,
-                };
+        let id = self.store.store_challenge_data(info).await.map_err(|_| {
+            MaybeRedirect::Redirected(Redirect::new(
+                uri,
+                (AuthorizationError::server_error(), state.clone()).into(),
+            ))
+        })?;
 
-                let id = self.store.store_challenge_data(info).await.map_err(|_| {
-                    MaybeRedirect::Redirected(Redirect::new(
-                        uri,
-                        (AuthorizationError::server_error(), state.clone()).into(),
-                    ))
-                })?;
+        let challenge = crate::auth::Challenge { id };
 
-                let challenge = crate::auth::Challenge { id };
+        Ok(Challenge(challenge))
 
-                Ok(Challenge(challenge))
-            }
-            Implicit(req) => {
-		self.validate_client(&req.client_id, &req.redirect_uri, &req.state)
-                    .await?;
-                let state = req.state.clone();
+        // match &raw_req {
+        //     AuthorizationCode(req) => {
+        //         self.validate_client(&req.client_id, &req.redirect_uri, &req.state)
+        //             .await?;
+        //         let state = req.state.clone();
 
-                let uri = req.redirect_uri.clone();
-                let info = ChallengeData {
-                    id: ChallengeId::from_random(),
-                    req: raw_req.clone(),
-                    ok: false,
-                };
+        //         let uri = req.redirect_uri.clone();
+        //         let info = ChallengeData {
+        //             id: ChallengeId::from_random(),
+        //             req: raw_req.clone(),
+        //             ok: false,
+        //         };
 
-                let id = self.store.store_challenge_data(info).await.map_err(|_| {
-                    MaybeRedirect::Redirected(Redirect::new(
-                        uri,
-                        (AuthorizationError::server_error(), state.clone()).into(),
-                    ))
-                })?;
+        //         let id = self.store.store_challenge_data(info).await.map_err(|_| {
+        //             MaybeRedirect::Redirected(Redirect::new(
+        //                 uri,
+        //                 (AuthorizationError::server_error(), state.clone()).into(),
+        //             ))
+        //         })?;
 
-                let challenge = crate::auth::Challenge { id };
+        //         let challenge = crate::auth::Challenge { id };
 
-                Ok(Challenge(challenge))
-	    }
-        }
+        //         Ok(Challenge(challenge))
+        //     }
+        //     Implicit(req) => {
+	// 	self.validate_client(&req.client_id, &req.redirect_uri, &req.state)
+        //             .await?;
+        //         let state = req.state.clone();
+
+        //         let uri = req.redirect_uri.clone();
+        //         let info = ChallengeData {
+        //             id: ChallengeId::from_random(),
+        //             req: raw_req.clone(),
+        //             ok: false,
+        //         };
+
+        //         let id = self.store.store_challenge_data(info).await.map_err(|_| {
+        //             MaybeRedirect::Redirected(Redirect::new(
+        //                 uri,
+        //                 (AuthorizationError::server_error(), state.clone()).into(),
+        //             ))
+        //         })?;
+
+        //         let challenge = crate::auth::Challenge { id };
+
+        //         Ok(Challenge(challenge))
+	//     }
+        // }
     }
 
     pub async fn access_token_request(
@@ -221,7 +242,8 @@ impl OAuth2Provider {
             .await
             .expect("Error getting challenge info");
         if let Some(info) = info {
-            Self::with_redirect(info.req.redirect_uri().clone(), move || async move {
+	    let parts = info.req.as_parts();
+            Self::with_redirect(parts.redirect_uri.clone(), move || async move {
                 match info.req {
                     AuthorizationRequest::AuthorizationCode(ref req) => {
                         let state = req.state.clone();

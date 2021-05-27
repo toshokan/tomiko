@@ -34,26 +34,31 @@ pub enum AuthorizationRequest {
 }
 
 impl AuthorizationRequest {
-    pub fn state(&self) -> &Option<String> {
-	match self {
-	    Self::AuthorizationCode(x) => &x.state,
-	    Self::Implicit(x) => &x.state
+    pub fn as_parts(&self) -> AuthorizationRequestParts<'_> {
+	use AuthorizationRequest::*;
+	
+	match &self {
+	    AuthorizationCode(AuthorizationCodeGrantAuthorizationRequest {
+		client_id, redirect_uri, state, ..
+	    }) |
+	    Implicit(ImplicitGrantAuthorizationRequest {
+		client_id, redirect_uri, state, ..
+	    }) => {
+		AuthorizationRequestParts {
+		    client_id,
+		    redirect_uri,
+		    state
+		}
+	    }
 	}
     }
-    
-    pub fn scope(&self) -> &Scope {
-	match self {
-	    Self::AuthorizationCode(x) => &x.scope,
-	    Self::Implicit(x) => &x.scope
-	}
-    }
-    
-    pub fn redirect_uri(&self) -> &RedirectUri {
-	match self {
-	    Self::AuthorizationCode(x) => &x.redirect_uri,
-	    Self::Implicit(x) => &x.redirect_uri
-	}
-    }
+}
+
+#[derive(Debug, Clone)]
+pub struct AuthorizationRequestParts<'r> {
+    pub client_id: &'r ClientId,
+    pub redirect_uri: &'r RedirectUri,
+    pub state: &'r Option<String>
 }
 
 #[derive(Debug)]

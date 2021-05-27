@@ -54,7 +54,6 @@ impl Server {
             .and(with_provider.clone())
             .and(body_with_credentials())
             .and_then(|provider: Arc<OAuth2Provider>, (credentials, req)| async move {
-
                 let result = provider.access_token_request(credentials, req).await;
 		form_encode(result)
             });
