@@ -5,7 +5,7 @@ use crate::util::{hash::HashingService, random::FromRandom};
 use crate::{
     auth::{
         AccessTokenError, AccessTokenErrorKind, AccessTokenResponse, AuthenticationCodeResponse,
-        AuthorizationError, AuthorizationRequest, AuthorizationResponse, BadRedirect,
+        AuthorizationError, AuthorizationRequest, AuthorizationResponse, BadRequest,
         ChallengeData, ClientCredentials, MaybeRedirect, Redirect, Store, TokenRequest,
         UpdateChallengeDataRequest, UpdateChallengeDataResponse, WithState,
     },
@@ -30,12 +30,12 @@ impl OAuth2Provider {
         client_id: &ClientId,
         redirect_uri: &RedirectUri,
         _state: &Option<String>,
-    ) -> Result<(), MaybeRedirect<WithState<AuthorizationError>, BadRedirect>> {
+    ) -> Result<(), MaybeRedirect<WithState<AuthorizationError>, BadRequest>> {
         self.store
             .check_client_uri(client_id, redirect_uri)
             .await
             .map_err(|_| {
-                MaybeRedirect::Direct(BadRedirect)
+                MaybeRedirect::Direct(BadRequest::BadRedirect)
             })?;
 
         Ok(())
@@ -85,7 +85,7 @@ impl OAuth2Provider {
         req: AuthorizationRequest,
     ) -> Result<
         MaybeChallenge<Redirect<AuthorizationResponse>>,
-        MaybeRedirect<WithState<AuthorizationError>, BadRedirect>,
+        MaybeRedirect<WithState<AuthorizationError>, BadRequest>,
     > {
 	let parts = req.as_parts();
 	self.validate_client(&parts.client_id, &parts.redirect_uri, &parts.state)
@@ -109,55 +109,6 @@ impl OAuth2Provider {
         let challenge = crate::auth::Challenge { id };
 
         Ok(Challenge(challenge))
-
-        // match &raw_req {
-        //     AuthorizationCode(req) => {
-        //         self.validate_client(&req.client_id, &req.redirect_uri, &req.state)
-        //             .await?;
-        //         let state = req.state.clone();
-
-        //         let uri = req.redirect_uri.clone();
-        //         let info = ChallengeData {
-        //             id: ChallengeId::from_random(),
-        //             req: raw_req.clone(),
-        //             ok: false,
-        //         };
-
-        //         let id = self.store.store_challenge_data(info).await.map_err(|_| {
-        //             MaybeRedirect::Redirected(Redirect::new(
-        //                 uri,
-        //                 (AuthorizationError::server_error(), state.clone()).into(),
-        //             ))
-        //         })?;
-
-        //         let challenge = crate::auth::Challenge { id };
-
-        //         Ok(Challenge(challenge))
-        //     }
-        //     Implicit(req) => {
-	// 	self.validate_client(&req.client_id, &req.redirect_uri, &req.state)
-        //             .await?;
-        //         let state = req.state.clone();
-
-        //         let uri = req.redirect_uri.clone();
-        //         let info = ChallengeData {
-        //             id: ChallengeId::from_random(),
-        //             req: raw_req.clone(),
-        //             ok: false,
-        //         };
-
-        //         let id = self.store.store_challenge_data(info).await.map_err(|_| {
-        //             MaybeRedirect::Redirected(Redirect::new(
-        //                 uri,
-        //                 (AuthorizationError::server_error(), state.clone()).into(),
-        //             ))
-        //         })?;
-
-        //         let challenge = crate::auth::Challenge { id };
-
-        //         Ok(Challenge(challenge))
-	//     }
-        // }
     }
 
     pub async fn access_token_request(
@@ -310,45 +261,6 @@ impl OAuth2Provider {
         Ok(UpdateChallengeDataResponse {
             redirect_to: format!("http://localhost:8001/oauth/v1/challenge/{}", id.0),
         })
-
-        // use UpdateChallengeInfoRequest::*;
-
-        // let info = self.store.get_challenge_data(id).await?;
-
-        // let resp = if let Some(info) = info {
-        //     let state = info.state.clone();
-        //     match req {
-        //         Accept => {
-        // 	    let code = AuthCode::from_random();
-
-        //             let data = AuthCodeData {
-        //                 client_id: info.client_id,
-        //                 code,
-        //                 state: info.state,
-        //                 redirect_uri: info.uri,
-        //                 scope: Some(info.scope),
-        //             };
-
-        //             let expiry = std::time::SystemTime::now()
-        //                 .checked_add(std::time::Duration::from_secs(10 * 60))
-        //                 .unwrap();
-
-        //             let data = self
-        //                 .store
-        //                 .store_code(data, expiry)
-        //                 .await
-        //                 .map_err(|_| AuthorizationError::server_error(&state))
-        //                 .expect("Bad data");
-
-        //             let response = AuthorizationResponse::new(data.code, data.state);
-        // 	    AuthResponse(response)
-        // 	},
-        //         Reject => RedirectTo(RedirectUri("http://localhost:8002/failure".to_string())),
-        //     }
-        // } else {
-        //     RedirectTo(RedirectUri("http://localhost:8002/not_found".to_string()))
-        // };
-        // Ok(resp)
     }
 }
 

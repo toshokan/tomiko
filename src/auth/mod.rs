@@ -132,7 +132,10 @@ pub struct AccessTokenResponse {
 }
 
 #[derive(Debug, Clone)]
-pub struct BadRedirect;
+pub enum BadRequest {
+    BadRedirect,
+    BadChallenge
+}
 
 #[derive(Debug)]
 pub enum MaybeRedirect<R, D> {

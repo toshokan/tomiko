@@ -1,5 +1,5 @@
 use crate::auth::{
-    AccessTokenError, AuthorizationError, BadRedirect, MaybeRedirect, Redirect, WithState,
+    AccessTokenError, AuthorizationError, BadRequest, MaybeRedirect, Redirect, WithState,
 };
 use warp::{Rejection, Reply};
 
@@ -7,7 +7,7 @@ use warp::{Rejection, Reply};
 pub enum AuthRejection {
     Authorization(Redirect<WithState<AuthorizationError>>),
     AccessToken(AccessTokenError),
-    BadRedirect(BadRedirect),
+    BadRequest(BadRequest),
 }
 
 impl warp::reject::Reject for AuthRejection {}
@@ -18,11 +18,11 @@ impl From<Redirect<WithState<AuthorizationError>>> for AuthRejection {
     }
 }
 
-impl From<MaybeRedirect<WithState<AuthorizationError>, BadRedirect>> for AuthRejection {
-    fn from(error: MaybeRedirect<WithState<AuthorizationError>, BadRedirect>) -> Self {
+impl From<MaybeRedirect<WithState<AuthorizationError>, BadRequest>> for AuthRejection {
+    fn from(error: MaybeRedirect<WithState<AuthorizationError>, BadRequest>) -> Self {
         match error {
             MaybeRedirect::Redirected(r) => Self::from(r),
-            MaybeRedirect::Direct(d) => Self::BadRedirect(d),
+            MaybeRedirect::Direct(d) => Self::BadRequest(d),
         }
     }
 }
@@ -46,7 +46,7 @@ pub async fn handle_reject(err: Rejection) -> Result<impl Reply, Rejection> {
                             .into_response(),
                     )
                 }
-                AuthRejection::BadRedirect(_) => Ok(warp::reply::with_status(
+                AuthRejection::BadRequest(_) => Ok(warp::reply::with_status(
                     warp::reply(),
                     warp::http::StatusCode::BAD_REQUEST,
                 )
