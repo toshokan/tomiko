@@ -5,6 +5,8 @@ use crate::core::types::{
     AuthCode, ChallengeId, ClientId, ClientSecret, HashedClientSecret, RedirectUri, Scope,
 };
 
+pub mod pkce;
+
 #[derive(Debug, Clone)]
 #[derive(serde::Serialize, serde::Deserialize)]
 pub struct AuthorizationCodeGrantAuthorizationRequest {
@@ -12,6 +14,8 @@ pub struct AuthorizationCodeGrantAuthorizationRequest {
     pub redirect_uri: RedirectUri,
     pub scope: Scope,
     pub state: Option<String>,
+    #[serde(flatten)]
+    pub pkce_challenge: pkce::Challenge
 }
 
 #[derive(Debug, Clone)]
@@ -66,6 +70,8 @@ pub struct AuthorizationRequestParts<'r> {
 pub struct AuthenticationCodeTokenRequest {
     pub redirect_uri: RedirectUri,
     pub code: AuthCode,
+    #[serde(flatten)]
+    pub pkce_verifier: pkce::Verifier
 }
 
 #[derive(Debug)]
