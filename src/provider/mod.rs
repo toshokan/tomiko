@@ -227,6 +227,11 @@ impl OAuth2Provider {
                         let access_token = self.token.new_token(&req.client_id, &req.scope);
                         let token_type = TokenService::token_type().to_string();
 
+			let state = req.state.clone();
+                        if !info.ok {
+                            Err((AuthorizationError::access_denied(), state.clone()))?;
+                        }
+
                         Ok(AuthorizationResponse::Implicit(AccessTokenResponse {
                             access_token,
                             token_type,
