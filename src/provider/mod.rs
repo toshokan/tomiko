@@ -116,7 +116,29 @@ impl OAuth2Provider {
 
                 Ok(Challenge(challenge))
             }
-            _ => unimplemented!(),
+            Implicit(req) => {
+		self.validate_client(&req.client_id, &req.redirect_uri, &req.state)
+                    .await?;
+                let state = req.state.clone();
+
+                let uri = req.redirect_uri.clone();
+                let info = ChallengeData {
+                    id: ChallengeId::from_random(),
+                    req: raw_req.clone(),
+                    ok: false,
+                };
+
+                let id = self.store.store_challenge_data(info).await.map_err(|_| {
+                    MaybeRedirect::Redirected(Redirect::new(
+                        uri,
+                        (AuthorizationError::server_error(), state.clone()).into(),
+                    ))
+                })?;
+
+                let challenge = crate::auth::Challenge { id };
+
+                Ok(Challenge(challenge))
+	    }
         }
     }
 
