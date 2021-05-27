@@ -1,5 +1,5 @@
 use super::error::AuthRejection;
-use warp::{reject::Reject, reply::{Reply, Response}};
+use warp::{reply::{Reply, Response}};
 use warp::Rejection;
 
 pub struct FormEncoded {

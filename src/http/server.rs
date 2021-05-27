@@ -3,7 +3,6 @@ use crate::core::types::ChallengeId;
 
 use std::sync::Arc;
 use warp::{Filter, Rejection};
-use crate::http::encoding::error::AuthRejection;
 
 use super::encoding::{error::handle_reject, reply::form_encode, reply::reply, WithCredentials};
 use http_basic_auth::Credential as BasicCredentials;
