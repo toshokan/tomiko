@@ -1,13 +1,21 @@
-use crate::{auth::{AccessTokenError, AccessTokenErrorKind, AccessTokenResponse, AuthenticationCodeResponse, AuthorizationError, AuthorizationRequest, AuthorizationResponse, BadRedirect, ChallengeInfo, ClientCredentials, MaybeRedirect, Redirect, Store, TokenRequest, UpdateChallengeInfoRequest, UpdateChallengeInfoResponse, WithState}, core::{models::AuthCodeData, types::AuthCode}};
+use crate::auth::MaybeChallenge::{self, *};
 use crate::core::models::Client;
 use crate::core::types::{ChallengeId, ClientId, RedirectUri, Scope};
 use crate::util::{hash::HashingService, random::FromRandom};
-use crate::auth::MaybeChallenge::{self, *};
+use crate::{
+    auth::{
+        AccessTokenError, AccessTokenErrorKind, AccessTokenResponse, AuthenticationCodeResponse,
+        AuthorizationError, AuthorizationRequest, AuthorizationResponse, BadRedirect,
+        ChallengeInfo, ClientCredentials, MaybeRedirect, Redirect, Store, TokenRequest,
+        UpdateChallengeInfoRequest, UpdateChallengeInfoResponse, WithState,
+    },
+    core::{models::AuthCodeData, types::AuthCode},
+};
 
-use jsonwebtoken::EncodingKey;
-use std::sync::Arc;
 use crate::db::DbStore;
 use crate::http::server::Server;
+use jsonwebtoken::EncodingKey;
+use std::sync::Arc;
 
 #[derive(Debug)]
 pub struct OAuth2Provider {
@@ -26,7 +34,12 @@ impl OAuth2Provider {
         self.store
             .check_client_uri(client_id, redirect_uri)
             .await
-            .map_err(|_| MaybeRedirect::Redirected(Redirect::new(redirect_uri.clone(), (AuthorizationError::unauthorized_client(), state.clone()).into())))?;
+            .map_err(|_| {
+                MaybeRedirect::Redirected(Redirect::new(
+                    redirect_uri.clone(),
+                    (AuthorizationError::unauthorized_client(), state.clone()).into(),
+                ))
+            })?;
 
         Ok(())
     }
@@ -60,14 +73,12 @@ impl OAuth2Provider {
 
         let mut interval = interval(Duration::from_secs(15));
 
-	loop {
-	    interval.tick().await;
-	    self.store.clean_up().await?
-	}
+        loop {
+            interval.tick().await;
+            self.store.clean_up().await?
+        }
     }
 }
-
-
 
 // #[async_trait]
 // impl Provider for OAuth2Provider {
@@ -75,7 +86,10 @@ impl OAuth2Provider {
     pub async fn authorization_request(
         &self,
         raw_req: AuthorizationRequest,
-    ) -> Result<MaybeChallenge<Redirect<AuthorizationResponse>>, MaybeRedirect<WithState<AuthorizationError>, BadRedirect>> {
+    ) -> Result<
+        MaybeChallenge<Redirect<AuthorizationResponse>>,
+        MaybeRedirect<WithState<AuthorizationError>, BadRedirect>,
+    > {
         use AuthorizationRequest::*;
 
         match &raw_req {
@@ -84,17 +98,20 @@ impl OAuth2Provider {
                     .await?;
                 let state = req.state.clone();
 
-		let uri = req.redirect_uri.clone();
+                let uri = req.redirect_uri.clone();
                 let info = ChallengeInfo {
                     id: ChallengeId::from_random(),
                     req: raw_req.clone(),
-		    ok: false
+                    ok: false,
                 };
 
-                let id = self.store.store_challenge_info(info)
-		    .await
-		    .map_err(|_| MaybeRedirect::Redirected(Redirect::new(uri, (AuthorizationError::server_error(), state.clone()).into())))?;
-		
+                let id = self.store.store_challenge_info(info).await.map_err(|_| {
+                    MaybeRedirect::Redirected(Redirect::new(
+                        uri,
+                        (AuthorizationError::server_error(), state.clone()).into(),
+                    ))
+                })?;
+
                 let challenge = crate::auth::Challenge { id };
 
                 Ok(Challenge(challenge))
@@ -160,64 +177,75 @@ impl OAuth2Provider {
         challenge
     }
 
-    pub async fn with_redirect<F, T, E>(uri: RedirectUri, f: impl FnOnce() -> F) -> Result<Redirect<T>, Redirect<E>>
-	where F: std::future::Future<Output = Result<T, E>>
+    pub async fn with_redirect<F, T, E>(
+        uri: RedirectUri,
+        f: impl FnOnce() -> F,
+    ) -> Result<Redirect<T>, Redirect<E>>
+    where
+        F: std::future::Future<Output = Result<T, E>>,
     {
-	f().await
-	    .map(|o| Redirect::new(uri.clone(), o))
-	    .map_err(|e| Redirect::new(uri.clone(), e))
+        f().await
+            .map(|o| Redirect::new(uri.clone(), o))
+            .map_err(|e| Redirect::new(uri.clone(), e))
     }
 
-    pub async fn get_challenge_result(&self, id: ChallengeId) -> Result<Redirect<AuthorizationResponse>, Redirect<WithState<AuthorizationError>>> {
-	let info = self.store.get_challenge_info(&id).await.expect("Error getting challenge info");
-	if let Some(info) = info {
-	    Self::with_redirect(info.req.redirect_uri().clone(), move || async move {
-		match info.req {
+    pub async fn get_challenge_result(
+        &self,
+        id: ChallengeId,
+    ) -> Result<Redirect<AuthorizationResponse>, Redirect<WithState<AuthorizationError>>> {
+        let info = self
+            .store
+            .get_challenge_info(&id)
+            .await
+            .expect("Error getting challenge info");
+        if let Some(info) = info {
+            Self::with_redirect(info.req.redirect_uri().clone(), move || async move {
+                match info.req {
+                    AuthorizationRequest::AuthorizationCode(ref req) => {
+                        let state = req.state.clone();
+                        if !info.ok {
+                            Err((AuthorizationError::access_denied(), state.clone()))?;
+                        }
 
-	            AuthorizationRequest::AuthorizationCode(ref req) => {
+                        let code = AuthCode::from_random();
+                        let data = AuthCodeData {
+                            code: code.clone(),
+                            client_id: req.client_id.clone(),
+                            req: req.clone(),
+                        };
 
-			let state = req.state.clone();
-			if !info.ok {
-			    Err((AuthorizationError::access_denied(), state.clone()))?;
-			}
-			
-			let code = AuthCode::from_random();
-			let data = AuthCodeData {
-			    code: code.clone(),
-			    client_id: req.client_id.clone(),
-			    req: req.clone()
-			};
-			
-			let expiry = std::time::SystemTime::now()
-			    .checked_add(std::time::Duration::from_secs(10 * 60))
-			    .unwrap();
-			
-			// Store code
-			self
-			    .store
-			    .store_code(data, expiry)
-			    .await
-			    .map_err(|_| (AuthorizationError::server_error(), state.clone()))?;
-			
-			Ok(AuthorizationResponse::AuthenticationCode(AuthenticationCodeResponse::new(code, state)))
-		    },
-		    AuthorizationRequest::Implicit(req) => {
-			let access_token = self.token.new_token(&req.client_id, &req.scope);
-			let token_type = TokenService::token_type().to_string();
+                        let expiry = std::time::SystemTime::now()
+                            .checked_add(std::time::Duration::from_secs(10 * 60))
+                            .unwrap();
 
-			Ok(AuthorizationResponse::Implicit(AccessTokenResponse {
+                        // Store code
+                        self.store
+                            .store_code(data, expiry)
+                            .await
+                            .map_err(|_| (AuthorizationError::server_error(), state.clone()))?;
+
+                        Ok(AuthorizationResponse::AuthenticationCode(
+                            AuthenticationCodeResponse::new(code, state),
+                        ))
+                    }
+                    AuthorizationRequest::Implicit(req) => {
+                        let access_token = self.token.new_token(&req.client_id, &req.scope);
+                        let token_type = TokenService::token_type().to_string();
+
+                        Ok(AuthorizationResponse::Implicit(AccessTokenResponse {
                             access_token,
                             token_type,
                             refresh_token: None,
                             expires_in: None,
                             scope: Some(req.scope),
-			}))
-		    }
-		}
-	    }).await
-	} else {
-	    unimplemented!()
-	}
+                        }))
+                    }
+                }
+            })
+            .await
+        } else {
+            unimplemented!()
+        }
     }
 
     pub async fn update_challenge_info_request(
@@ -225,25 +253,29 @@ impl OAuth2Provider {
         id: ChallengeId,
         req: UpdateChallengeInfoRequest,
     ) -> Result<crate::auth::UpdateChallengeInfoResponse, ()> {
-	let mut info = self.store.get_challenge_info(&id).await?.expect("No matching challenge");
-	info.ok = match req {
-	    UpdateChallengeInfoRequest::Accept => true,
-	    UpdateChallengeInfoRequest::Reject => false
-	};
-	self.store.update_challenge_info(info).await?;
-	Ok(UpdateChallengeInfoResponse {
-	    redirect_to: format!("http://localhost:8001/oauth/v1/challenge/{}", id.0)
-	})
-	
+        let mut info = self
+            .store
+            .get_challenge_info(&id)
+            .await?
+            .expect("No matching challenge");
+        info.ok = match req {
+            UpdateChallengeInfoRequest::Accept => true,
+            UpdateChallengeInfoRequest::Reject => false,
+        };
+        self.store.update_challenge_info(info).await?;
+        Ok(UpdateChallengeInfoResponse {
+            redirect_to: format!("http://localhost:8001/oauth/v1/challenge/{}", id.0),
+        })
+
         // use UpdateChallengeInfoRequest::*;
 
         // let info = self.store.get_challenge_info(id).await?;
-	
+
         // let resp = if let Some(info) = info {
-	//     let state = info.state.clone();
+        //     let state = info.state.clone();
         //     match req {
         //         Accept => {
-	// 	    let code = AuthCode::from_random();
+        // 	    let code = AuthCode::from_random();
 
         //             let data = AuthCodeData {
         //                 client_id: info.client_id,
@@ -265,14 +297,14 @@ impl OAuth2Provider {
         //                 .expect("Bad data");
 
         //             let response = AuthorizationResponse::new(data.code, data.state);
-	// 	    AuthResponse(response)
-	// 	},
+        // 	    AuthResponse(response)
+        // 	},
         //         Reject => RedirectTo(RedirectUri("http://localhost:8002/failure".to_string())),
         //     }
         // } else {
         //     RedirectTo(RedirectUri("http://localhost:8002/not_found".to_string()))
         // };
-	// Ok(resp)
+        // Ok(resp)
     }
 }
 
@@ -349,7 +381,6 @@ async fn tomikod(config: Config) -> Option<()> {
         let provider = Arc::clone(&provider);
         tokio::spawn(async move { provider.start_clean_up_worker().await });
     };
-
 
     let server = Server::new(provider);
     server.serve().await;
