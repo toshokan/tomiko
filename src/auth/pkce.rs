@@ -1,3 +1,5 @@
+use super::{AccessTokenError, AccessTokenErrorKind};
+
 #[derive(Debug, Clone)]
 #[derive(serde::Deserialize, serde::Serialize)]
 pub enum Transformation {
@@ -27,4 +29,27 @@ pub struct Challenge {
 pub struct Verifier {
     #[serde(rename = "code_verifier")]
     pub value: String
+}
+
+pub fn verify(challenge: &Challenge, verifier: Option<&Verifier>) -> Result<(), AccessTokenError> {
+    use sha2::{Sha256, Digest};
+    
+    if let Some(verifier) = verifier {
+	use Transformation::*;
+	let matches = match challenge.method {
+	    Plain => challenge.code == verifier.value,
+	    S256 => {
+		let digest = Sha256::digest(verifier.value.as_bytes());
+		let digest = base64::encode_config(digest, base64::URL_SAFE);
+		digest == challenge.code
+	    }
+	};
+	if matches {
+	    Ok(())
+	} else {
+	    Err(AccessTokenError::from(AccessTokenErrorKind::InvalidRequest))
+	}
+    } else {
+	Err(AccessTokenError::from(AccessTokenErrorKind::InvalidRequest))
+    }
 }

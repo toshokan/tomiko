@@ -15,7 +15,8 @@ pub struct AuthorizationCodeGrantAuthorizationRequest {
     pub scope: Scope,
     pub state: Option<String>,
     #[serde(flatten)]
-    pub pkce_challenge: pkce::Challenge
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub pkce_challenge: Option<pkce::Challenge>
 }
 
 #[derive(Debug, Clone)]
@@ -71,7 +72,7 @@ pub struct AuthenticationCodeTokenRequest {
     pub redirect_uri: RedirectUri,
     pub code: AuthCode,
     #[serde(flatten)]
-    pub pkce_verifier: pkce::Verifier
+    pub pkce_verifier: Option<pkce::Verifier>
 }
 
 #[derive(Debug)]

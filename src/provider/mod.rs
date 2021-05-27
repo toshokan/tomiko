@@ -1,4 +1,4 @@
-use crate::auth::{ChallengeInfo, MaybeChallenge::{self, *}};
+use crate::auth::{ChallengeInfo, MaybeChallenge::{self, *}, pkce};
 use crate::core::models::Client;
 use crate::core::types::{ChallengeId, ClientId, RedirectUri, Scope};
 use crate::util::{hash::HashingService, random::FromRandom};
@@ -125,6 +125,10 @@ impl OAuth2Provider {
                     .get_authcode_data(&client.id, &req.code)
                     .await
                     .map_err(|_| AccessTokenErrorKind::InvalidGrant)?;
+
+		if let Some(challenge) = data.req.pkce_challenge {
+		    pkce::verify(&challenge, req.pkce_verifier.as_ref())?;
+		}
 
                 if &data.req.redirect_uri == &req.redirect_uri {
                     let access_token = self.token.new_token(&client.id, &data.req.scope);
