@@ -1,23 +1,23 @@
-use crate::auth::{AccessTokenError, AuthorizationError, BadRedirect, MaybeRedirect, Redirect};
+use crate::auth::{AccessTokenError, AuthorizationError, BadRedirect, MaybeRedirect, Redirect, WithState};
 use warp::{Rejection, Reply};
 
 #[derive(Debug, Clone)]
 pub enum AuthRejection {
-    Authorization(Redirect<AuthorizationError>),
+    Authorization(Redirect<WithState<AuthorizationError>>),
     AccessToken(AccessTokenError),
     BadRedirect(BadRedirect)
 }
 
 impl warp::reject::Reject for AuthRejection {}
 
-impl From<Redirect<AuthorizationError>> for AuthRejection {
-    fn from(error: Redirect<AuthorizationError>) -> Self {
+impl From<Redirect<WithState<AuthorizationError>>> for AuthRejection {
+    fn from(error: Redirect<WithState<AuthorizationError>>) -> Self {
 	Self::Authorization(error)
     }
 }
 
-impl From<MaybeRedirect<AuthorizationError, BadRedirect>> for AuthRejection {
-    fn from(error: MaybeRedirect<AuthorizationError, BadRedirect>) -> Self {
+impl From<MaybeRedirect<WithState<AuthorizationError>, BadRedirect>> for AuthRejection {
+    fn from(error: MaybeRedirect<WithState<AuthorizationError>, BadRedirect>) -> Self {
 	match error {
 	    MaybeRedirect::Redirected(r) => Self::from(r),
 	    MaybeRedirect::Direct(d) => Self::BadRedirect(d)

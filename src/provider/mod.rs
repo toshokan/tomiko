@@ -1,4 +1,4 @@
-use crate::{auth::{AccessTokenError, AccessTokenErrorKind, AccessTokenResponse, AuthenticationCodeResponse, AuthorizationError, AuthorizationRequest, AuthorizationResponse, BadRedirect, ChallengeInfo, ClientCredentials, MaybeRedirect, Redirect, Store, TokenRequest, UpdateChallengeInfoRequest, UpdateChallengeInfoResponse}, core::{models::AuthCodeData, types::AuthCode}};
+use crate::{auth::{AccessTokenError, AccessTokenErrorKind, AccessTokenResponse, AuthenticationCodeResponse, AuthorizationError, AuthorizationRequest, AuthorizationResponse, BadRedirect, ChallengeInfo, ClientCredentials, MaybeRedirect, Redirect, Store, TokenRequest, UpdateChallengeInfoRequest, UpdateChallengeInfoResponse, WithState}, core::{models::AuthCodeData, types::AuthCode}};
 use crate::core::models::Client;
 use crate::core::types::{ChallengeId, ClientId, RedirectUri, Scope};
 use crate::util::{hash::HashingService, random::FromRandom};
@@ -22,11 +22,11 @@ impl OAuth2Provider {
         client_id: &ClientId,
         redirect_uri: &RedirectUri,
         state: &Option<String>,
-    ) -> Result<(), MaybeRedirect<AuthorizationError, BadRedirect>> {
+    ) -> Result<(), MaybeRedirect<WithState<AuthorizationError>, BadRedirect>> {
         self.store
             .check_client_uri(client_id, redirect_uri)
             .await
-            .map_err(|_| MaybeRedirect::Redirected(Redirect::new(redirect_uri.clone(), AuthorizationError::unauthorized_client(state))))?;
+            .map_err(|_| MaybeRedirect::Redirected(Redirect::new(redirect_uri.clone(), (AuthorizationError::unauthorized_client(), state.clone()).into())))?;
 
         Ok(())
     }
@@ -74,11 +74,11 @@ impl OAuth2Provider {
 impl OAuth2Provider {
     pub async fn authorization_request(
         &self,
-        req: AuthorizationRequest,
-    ) -> Result<MaybeChallenge<Redirect<AuthorizationResponse>>, MaybeRedirect<AuthorizationError, BadRedirect>> {
+        raw_req: AuthorizationRequest,
+    ) -> Result<MaybeChallenge<Redirect<AuthorizationResponse>>, MaybeRedirect<WithState<AuthorizationError>, BadRedirect>> {
         use AuthorizationRequest::*;
 
-        match req {
+        match &raw_req {
             AuthorizationCode(req) => {
                 self.validate_client(&req.client_id, &req.redirect_uri, &req.state)
                     .await?;
@@ -87,16 +87,13 @@ impl OAuth2Provider {
 		let uri = req.redirect_uri.clone();
                 let info = ChallengeInfo {
                     id: ChallengeId::from_random(),
-                    client_id: req.client_id,
-                    uri: req.redirect_uri,
-                    scope: req.scope,
-                    state: req.state,
+                    req: raw_req.clone(),
 		    ok: false
                 };
 
                 let id = self.store.store_challenge_info(info)
 		    .await
-		    .map_err(|_| MaybeRedirect::Redirected(Redirect::new(uri, AuthorizationError::server_error(&state))))?;
+		    .map_err(|_| MaybeRedirect::Redirected(Redirect::new(uri, (AuthorizationError::server_error(), state.clone()).into())))?;
 		
                 let challenge = crate::auth::Challenge { id };
 
@@ -121,8 +118,8 @@ impl OAuth2Provider {
                     .await
                     .map_err(|_| AccessTokenErrorKind::InvalidGrant)?;
 
-                if &data.redirect_uri == &req.redirect_uri {
-                    let access_token = self.token.new_token(&client, data.scope.as_ref());
+                if &data.req.redirect_uri == &req.redirect_uri {
+                    let access_token = self.token.new_token(&client.id, &data.req.scope);
                     let token_type = TokenService::token_type().to_string();
 
                     Ok(AccessTokenResponse {
@@ -130,7 +127,7 @@ impl OAuth2Provider {
                         token_type,
                         refresh_token: None,
                         expires_in: None,
-                        scope: data.scope,
+                        scope: Some(data.req.scope),
                     })
                 } else {
                     Err(AccessTokenErrorKind::InvalidGrant.into())
@@ -143,7 +140,7 @@ impl OAuth2Provider {
                     .await
                     .expect("Trim scopes issue");
 
-                let access_token = self.token.new_token(&client, Some(&scope));
+                let access_token = self.token.new_token(&client.id, &scope);
                 let token_type = TokenService::token_type().to_string();
 
                 Ok(AccessTokenResponse {
@@ -158,7 +155,7 @@ impl OAuth2Provider {
         }
     }
 
-    pub async fn get_challenge_info(&self, id: ChallengeId) -> Option<crate::auth::ChallengeInfo> {
+    pub async fn get_challenge_info(&self, id: ChallengeId) -> Option<ChallengeInfo> {
         let challenge = self.store.get_challenge_info(&id).await.ok()?;
         challenge
     }
@@ -171,36 +168,52 @@ impl OAuth2Provider {
 	    .map_err(|e| Redirect::new(uri.clone(), e))
     }
 
-    pub async fn get_challenge_result(&self, id: ChallengeId) -> Result<Redirect<AuthorizationResponse>, Redirect<AuthorizationError>> {
+    pub async fn get_challenge_result(&self, id: ChallengeId) -> Result<Redirect<AuthorizationResponse>, Redirect<WithState<AuthorizationError>>> {
 	let info = self.store.get_challenge_info(&id).await.expect("Error getting challenge info");
 	if let Some(info) = info {
-	    Self::with_redirect(info.uri.clone(), move || async move {
-		let state = info.state.clone();
-		if !info.ok {
-		    Err(AuthorizationError::access_denied(&state))?;
+	    Self::with_redirect(info.req.redirect_uri().clone(), move || async move {
+		match info.req {
+
+	            AuthorizationRequest::AuthorizationCode(ref req) => {
+
+			let state = req.state.clone();
+			if !info.ok {
+			    Err((AuthorizationError::access_denied(), state.clone()))?;
+			}
+			
+			let code = AuthCode::from_random();
+			let data = AuthCodeData {
+			    code: code.clone(),
+			    client_id: req.client_id.clone(),
+			    req: req.clone()
+			};
+			
+			let expiry = std::time::SystemTime::now()
+			    .checked_add(std::time::Duration::from_secs(10 * 60))
+			    .unwrap();
+			
+			// Store code
+			self
+			    .store
+			    .store_code(data, expiry)
+			    .await
+			    .map_err(|_| (AuthorizationError::server_error(), state.clone()))?;
+			
+			Ok(AuthorizationResponse::AuthenticationCode(AuthenticationCodeResponse::new(code, state)))
+		    },
+		    AuthorizationRequest::Implicit(req) => {
+			let access_token = self.token.new_token(&req.client_id, &req.scope);
+			let token_type = TokenService::token_type().to_string();
+
+			Ok(AuthorizationResponse::Implicit(AccessTokenResponse {
+                            access_token,
+                            token_type,
+                            refresh_token: None,
+                            expires_in: None,
+                            scope: Some(req.scope),
+			}))
+		    }
 		}
-		
-		let code = AuthCode::from_random();
-		let data = AuthCodeData {
-		    client_id: info.client_id,
-		    code: code.clone(),
-		    state: info.state,
-		    redirect_uri: info.uri,
-		    scope: Some(info.scope),
-		};
-		
-		let expiry = std::time::SystemTime::now()
-		    .checked_add(std::time::Duration::from_secs(10 * 60))
-		    .unwrap();
-		
-		// Store code
-		self
-		    .store
-		    .store_code(data, expiry)
-		    .await
-		    .map_err(|_| AuthorizationError::server_error(&state))?;
-		
-		Ok(AuthorizationResponse::AuthenticationCode(AuthenticationCodeResponse::new(code, state)))
 	    }).await
 	} else {
 	    unimplemented!()
@@ -299,15 +312,15 @@ impl TokenService {
             .expect("Unix Epoch is in the past.")
     }
 
-    pub fn new_token(&self, client: &Client, scope: Option<&Scope>) -> String {
+    pub fn new_token(&self, client_id: &ClientId, scope: &Scope) -> String {
         use jsonwebtoken::{encode, Algorithm, Header};
 
         let time_now = Self::current_timestamp().as_secs();
         let expiry = time_now + 3600;
 
         let claims = TomikoClaims {
-            sub: client.id.0.to_string(),
-            scope: scope.cloned().unwrap_or(Scope::from_delimited_parts("")),
+            sub: client_id.0.to_string(),
+            scope: scope.clone(),
             iat: time_now,
             exp: expiry,
             iss: "tomiko".to_string(),

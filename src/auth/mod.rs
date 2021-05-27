@@ -5,8 +5,8 @@ use crate::core::types::{
     AuthCode, ChallengeId, ClientId, ClientSecret, HashedClientSecret, RedirectUri, Scope,
 };
 
-#[derive(Debug)]
-#[derive(serde::Deserialize)]
+#[derive(Debug, Clone)]
+#[derive(serde::Serialize, serde::Deserialize)]
 pub struct AuthorizationCodeGrantAuthorizationRequest {
     pub client_id: ClientId,
     pub redirect_uri: RedirectUri,
@@ -14,23 +14,46 @@ pub struct AuthorizationCodeGrantAuthorizationRequest {
     pub state: Option<String>,
 }
 
-#[derive(Debug)]
-#[derive(serde::Deserialize)]
+#[derive(Debug, Clone)]
+#[derive(serde::Serialize, serde::Deserialize)]
 pub struct ImplicitGrantAuthorizationRequest {
-    client_id: ClientId,
-    redirect_uri: RedirectUri,
-    scope: Scope,
-    state: Option<String>,
+    pub client_id: ClientId,
+    pub redirect_uri: RedirectUri,
+    pub scope: Scope,
+    pub state: Option<String>,
 }
 
-#[derive(Debug)]
-#[derive(serde::Deserialize)]
+#[derive(Debug, Clone)]
+#[derive(serde::Serialize, serde::Deserialize)]
 #[serde(tag = "response_type")]
 pub enum AuthorizationRequest {
     #[serde(rename = "code")]
     AuthorizationCode(AuthorizationCodeGrantAuthorizationRequest),
     #[serde(rename = "token")]
     Implicit(ImplicitGrantAuthorizationRequest),
+}
+
+impl AuthorizationRequest {
+    pub fn state(&self) -> &Option<String> {
+	match self {
+	    Self::AuthorizationCode(x) => &x.state,
+	    Self::Implicit(x) => &x.state
+	}
+    }
+    
+    pub fn scope(&self) -> &Scope {
+	match self {
+	    Self::AuthorizationCode(x) => &x.scope,
+	    Self::Implicit(x) => &x.scope
+	}
+    }
+    
+    pub fn redirect_uri(&self) -> &RedirectUri {
+	match self {
+	    Self::AuthorizationCode(x) => &x.redirect_uri,
+	    Self::Implicit(x) => &x.redirect_uri
+	}
+    }
 }
 
 #[derive(Debug)]
@@ -127,6 +150,24 @@ pub enum AuthorizationErrorKind {
 
 #[derive(Debug, Clone)]
 #[derive(serde::Serialize)]
+pub struct WithState<T> {
+    #[serde(flatten)]
+    pub inner: T,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub state: Option<String>
+}
+
+impl<T> From<(T, Option<String>)> for WithState<T> {
+    fn from((t, state): (T, Option<String>)) -> Self {
+	Self {
+	    inner: t,
+	    state
+	}
+    }
+}
+
+#[derive(Debug, Clone)]
+#[derive(serde::Serialize)]
 #[serde(rename_all = "snake_case")]
 pub struct AuthorizationError {
     #[serde(rename = "error")]
@@ -136,18 +177,15 @@ pub struct AuthorizationError {
     #[serde(rename = "error_uri")]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub uri: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub state: Option<String>,
 }
 
 macro_rules! make_helper {
     ($name: ident, $variant: path) => {
-        pub fn $name(state: &Option<String>) -> Self {
+        pub fn $name() -> Self {
             Self {
                 kind: $variant,
                 description: None,
                 uri: None,
-                state: state.as_ref().map(ToString::to_string),
             }
         }
     };
@@ -214,10 +252,7 @@ pub struct Challenge {
 #[derive(serde::Serialize)]
 pub struct ChallengeInfo {
     pub id: ChallengeId,
-    pub client_id: ClientId,
-    pub uri: RedirectUri,
-    pub scope: Scope,
-    pub state: Option<String>,
+    pub req: AuthorizationRequest,
     pub ok: bool
 }
 

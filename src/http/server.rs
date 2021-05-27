@@ -119,19 +119,3 @@ impl Server {
         Some(())
     }
 }
-
-#[cfg(feature = "none")]
-mod none {
-    enum ErrorT<A, I> {
-	App(A),
-	Irrecoverable(I)
-    }
-
-    type Redirect<T> = Option<T>;
-    
-    type TResult<S, E> = Result<S, ErrorT<E, ()>>;
-    type TResult2<S, E> = TResult<Redirect<S>, Redirect<E>>;
-
-    enum RedirectError {}
-    enum DirectError {}
-}

@@ -49,21 +49,19 @@ impl Store for DbStore {
     async fn store_code(&self, data: AuthCodeData, expiry: SystemTime) -> Result<AuthCodeData, ()> {
         use std::convert::TryInto;
 
-        let scope = data.scope.as_ref().map(|s| s.as_joined());
         let invalid_after: i64 = expiry
             .duration_since(SystemTime::UNIX_EPOCH)
             .unwrap()
             .as_secs()
             .try_into()
             .unwrap();
+	let req = serde_json::to_string(&data.req).expect("bad db serialize");
 
         sqlx::query!(
-            "INSERT INTO codes(client_id, code, state, uri, scope, invalid_after) VALUES(?, ?, ?, ?, ?, ?)",
+            "INSERT INTO codes(client_id, code, req, invalid_after) VALUES(?, ?, ?, ?)",
             data.client_id.0,
             data.code.0,
-            data.state,
-            data.redirect_uri.0,
-            scope,
+	    req,
 	    invalid_after
         )
             .execute(&self.pool)
@@ -120,11 +118,9 @@ impl Store for DbStore {
         .await
         .map_err(|_| ())?
         .map(|r| AuthCodeData {
-            client_id: ClientId(r.client_id),
             code: AuthCode(r.code),
-            state: r.state,
-            redirect_uri: RedirectUri(r.uri),
-            scope: r.scope.map(|s| Scope::from_delimited_parts(&s)),
+	    client_id: ClientId(r.client_id),
+	    req: serde_json::from_str(&r.req).expect("Bad db deserialize")
         });
 
         result.ok_or(())
@@ -174,15 +170,12 @@ impl Store for DbStore {
 
     async fn store_challenge_info(&self, info: ChallengeInfo) -> Result<ChallengeId, ()> {
         let id = info.id.clone();
-	let scopes = info.scope.as_joined();
+	let req = serde_json::to_string(&info.req).expect("Bad db serialize");
 
         sqlx::query!(
-            "INSERT INTO challenges(id, client_id, uri, scope, state, ok) VALUES (?,?,?,?,?, ?)",
+            "INSERT INTO challenges(id, req, ok) VALUES (?,?,?)",
             info.id.0,
-            info.client_id.0,
-            info.uri.0,
-            scopes,
-            info.state,
+	    req,
 	    info.ok
         )
         .execute(&self.pool)
@@ -202,10 +195,7 @@ impl Store for DbStore {
             .map(|r| {
                 r.map(|r| ChallengeInfo {
                     id: ChallengeId(r.id),
-                    client_id: ClientId(r.client_id),
-                    uri: RedirectUri(r.uri),
-                    scope: Scope::from_delimited_parts(&r.scope),
-                    state: r.state,
+                    req: serde_json::from_str(&r.req).expect("Bad db deserialize"),
 		    ok: r.ok,
                 })
             })
@@ -216,12 +206,11 @@ impl Store for DbStore {
 
     async fn update_challenge_info(&self, info: ChallengeInfo) -> Result<ChallengeInfo, ()> {
 	let id = &info.id;
-	let scopes = info.scope.as_joined();
+	let req = serde_json::to_string(&info.req).expect("Bad db serialize");
+	
 	let result = sqlx::query!(
-	    "UPDATE challenges SET client_id = ?, uri = ?, scope = ?, ok = ? WHERE id = ?",
-	    info.client_id.0,
-	    info.uri.0,
-	    scopes,
+	    "UPDATE challenges SET req = ?, ok = ? WHERE id = ?",
+	    req,
 	    info.ok,
 	    id.0
 	)
