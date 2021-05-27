@@ -250,22 +250,54 @@ pub struct Challenge {
 
 #[derive(Debug)]
 #[derive(serde::Serialize)]
-pub struct ChallengeInfo {
+pub struct ChallengeData {
     pub id: ChallengeId,
     pub req: AuthorizationRequest,
     pub ok: bool
 }
 
+#[derive(Debug, Clone)]
+#[derive(serde::Serialize)]
+pub struct ChallengeInfo {
+    pub id: ChallengeId,
+    pub client_id: ClientId,
+    pub scope: Scope,
+    pub ok: bool
+}
+
+impl From<ChallengeData> for ChallengeInfo {
+    fn from(data: ChallengeData) -> Self {
+	match data.req {
+	    AuthorizationRequest::AuthorizationCode(req) => {
+		Self {
+		    id: data.id,
+		    client_id: req.client_id,
+		    scope: req.scope,
+		    ok: data.ok
+		}
+	    }
+	    AuthorizationRequest::Implicit(req) => {
+		Self {
+		    id: data.id,
+		    client_id: req.client_id,
+		    scope: req.scope,
+		    ok: data.ok
+		}
+	    }
+	}
+    }
+}
+
 #[derive(Debug)]
 #[derive(serde::Deserialize)]
-pub enum UpdateChallengeInfoRequest {
+pub enum UpdateChallengeDataRequest {
     Accept,
     Reject,
 }
 
 #[derive(Debug)]
 #[derive(serde::Serialize)]
-pub struct UpdateChallengeInfoResponse {
+pub struct UpdateChallengeDataResponse {
     pub redirect_to: String
 }
 
@@ -322,9 +354,9 @@ pub trait Store {
     ) -> Result<AuthCodeData, ()>;
     async fn clean_up(&self) -> Result<(), ()>;
     async fn trim_client_scopes(&self, client_id: &ClientId, scope: &Scope) -> Result<Scope, ()>;
-    async fn store_challenge_info(&self, info: ChallengeInfo) -> Result<ChallengeId, ()>;
-    async fn get_challenge_info(&self, id: &ChallengeId) -> Result<Option<ChallengeInfo>, ()>;
-    async fn update_challenge_info(&self, info: ChallengeInfo) -> Result<ChallengeInfo, ()>;
+    async fn store_challenge_data(&self, info: ChallengeData) -> Result<ChallengeId, ()>;
+    async fn get_challenge_data(&self, id: &ChallengeId) -> Result<Option<ChallengeData>, ()>;
+    async fn update_challenge_data(&self, info: ChallengeData) -> Result<ChallengeData, ()>;
 }
 
 #[async_trait]
@@ -338,10 +370,10 @@ pub trait Provider {
         credentials: ClientCredentials,
         req: TokenRequest,
     ) -> Result<AccessTokenResponse, AccessTokenError>;
-    async fn get_challenge_info(&self, id: ChallengeId) -> Option<ChallengeInfo>;
+    async fn get_challenge_info(&self, id: ChallengeId) -> Option<ChallengeData>;
     async fn update_challenge_info_request(
         &self,
         id: ChallengeId,
-        req: UpdateChallengeInfoRequest,
-    ) -> Result<UpdateChallengeInfoResponse, ()>;
+        req: UpdateChallengeDataRequest,
+    ) -> Result<UpdateChallengeDataResponse, ()>;
 }

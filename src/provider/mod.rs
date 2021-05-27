@@ -1,4 +1,4 @@
-use crate::auth::MaybeChallenge::{self, *};
+use crate::auth::{ChallengeInfo, MaybeChallenge::{self, *}};
 use crate::core::models::Client;
 use crate::core::types::{ChallengeId, ClientId, RedirectUri, Scope};
 use crate::util::{hash::HashingService, random::FromRandom};
@@ -6,8 +6,8 @@ use crate::{
     auth::{
         AccessTokenError, AccessTokenErrorKind, AccessTokenResponse, AuthenticationCodeResponse,
         AuthorizationError, AuthorizationRequest, AuthorizationResponse, BadRedirect,
-        ChallengeInfo, ClientCredentials, MaybeRedirect, Redirect, Store, TokenRequest,
-        UpdateChallengeInfoRequest, UpdateChallengeInfoResponse, WithState,
+        ChallengeData, ClientCredentials, MaybeRedirect, Redirect, Store, TokenRequest,
+        UpdateChallengeDataRequest, UpdateChallengeDataResponse, WithState,
     },
     core::{models::AuthCodeData, types::AuthCode},
 };
@@ -99,13 +99,13 @@ impl OAuth2Provider {
                 let state = req.state.clone();
 
                 let uri = req.redirect_uri.clone();
-                let info = ChallengeInfo {
+                let info = ChallengeData {
                     id: ChallengeId::from_random(),
                     req: raw_req.clone(),
                     ok: false,
                 };
 
-                let id = self.store.store_challenge_info(info).await.map_err(|_| {
+                let id = self.store.store_challenge_data(info).await.map_err(|_| {
                     MaybeRedirect::Redirected(Redirect::new(
                         uri,
                         (AuthorizationError::server_error(), state.clone()).into(),
@@ -173,8 +173,11 @@ impl OAuth2Provider {
     }
 
     pub async fn get_challenge_info(&self, id: ChallengeId) -> Option<ChallengeInfo> {
-        let challenge = self.store.get_challenge_info(&id).await.ok()?;
-        challenge
+	self.store
+	    .get_challenge_data(&id)
+	    .await
+	    .ok()?
+	    .map(Into::into)
     }
 
     pub async fn with_redirect<F, T, E>(
@@ -195,7 +198,7 @@ impl OAuth2Provider {
     ) -> Result<Redirect<AuthorizationResponse>, Redirect<WithState<AuthorizationError>>> {
         let info = self
             .store
-            .get_challenge_info(&id)
+            .get_challenge_data(&id)
             .await
             .expect("Error getting challenge info");
         if let Some(info) = info {
@@ -248,28 +251,28 @@ impl OAuth2Provider {
         }
     }
 
-    pub async fn update_challenge_info_request(
+    pub async fn update_challenge_data_request(
         &self,
         id: ChallengeId,
-        req: UpdateChallengeInfoRequest,
-    ) -> Result<crate::auth::UpdateChallengeInfoResponse, ()> {
+        req: UpdateChallengeDataRequest,
+    ) -> Result<crate::auth::UpdateChallengeDataResponse, ()> {
         let mut info = self
             .store
-            .get_challenge_info(&id)
+            .get_challenge_data(&id)
             .await?
             .expect("No matching challenge");
         info.ok = match req {
-            UpdateChallengeInfoRequest::Accept => true,
-            UpdateChallengeInfoRequest::Reject => false,
+            UpdateChallengeDataRequest::Accept => true,
+            UpdateChallengeDataRequest::Reject => false,
         };
-        self.store.update_challenge_info(info).await?;
-        Ok(UpdateChallengeInfoResponse {
+        self.store.update_challenge_data(info).await?;
+        Ok(UpdateChallengeDataResponse {
             redirect_to: format!("http://localhost:8001/oauth/v1/challenge/{}", id.0),
         })
 
         // use UpdateChallengeInfoRequest::*;
 
-        // let info = self.store.get_challenge_info(id).await?;
+        // let info = self.store.get_challenge_data(id).await?;
 
         // let resp = if let Some(info) = info {
         //     let state = info.state.clone();

@@ -1,6 +1,6 @@
 #![allow(clippy::toplevel_ref_arg)]
 
-use crate::auth::{ChallengeInfo, Store};
+use crate::auth::{ChallengeData, Store};
 use crate::core::models::{AuthCodeData, Client, RedirectRecord};
 use crate::core::types::{AuthCode, ChallengeId, ClientId, HashedClientSecret, RedirectUri, Scope};
 
@@ -168,7 +168,7 @@ impl Store for DbStore {
         Ok(Scope::from_parts(parts))
     }
 
-    async fn store_challenge_info(&self, info: ChallengeInfo) -> Result<ChallengeId, ()> {
+    async fn store_challenge_data(&self, info: ChallengeData) -> Result<ChallengeId, ()> {
         let id = info.id.clone();
 	let req = serde_json::to_string(&info.req).expect("Bad db serialize");
 
@@ -185,15 +185,15 @@ impl Store for DbStore {
         Ok(id)
     }
 
-    async fn get_challenge_info(
+    async fn get_challenge_data(
         &self,
         id: &ChallengeId,
-    ) -> Result<Option<crate::auth::ChallengeInfo>, ()> {
+    ) -> Result<Option<crate::auth::ChallengeData>, ()> {
         let result = sqlx::query!("SELECT * FROM challenges WHERE id = ?", id.0)
             .fetch_optional(&self.pool)
             .await
             .map(|r| {
-                r.map(|r| ChallengeInfo {
+                r.map(|r| ChallengeData {
                     id: ChallengeId(r.id),
                     req: serde_json::from_str(&r.req).expect("Bad db deserialize"),
 		    ok: r.ok,
@@ -204,7 +204,7 @@ impl Store for DbStore {
         Ok(result)
     }
 
-    async fn update_challenge_info(&self, info: ChallengeInfo) -> Result<ChallengeInfo, ()> {
+    async fn update_challenge_data(&self, info: ChallengeData) -> Result<ChallengeData, ()> {
 	let id = &info.id;
 	let req = serde_json::to_string(&info.req).expect("Bad db serialize");
 	

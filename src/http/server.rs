@@ -1,4 +1,4 @@
-use crate::auth::{ClientCredentials, UpdateChallengeInfoRequest};
+use crate::auth::{ClientCredentials, UpdateChallengeDataRequest};
 use crate::core::types::ChallengeId;
 
 use std::sync::Arc;
@@ -59,7 +59,7 @@ impl Server {
 		form_encode(result)
             });
 
-        let challenge_info = warp::path!("challenge-info" / ChallengeId)
+        let challenge_data = warp::path!("challenge-info" / ChallengeId)
             .and(warp::get())
             .and(with_provider.clone())
             .and_then(|id, provider: Arc<OAuth2Provider>| async move {
@@ -70,14 +70,14 @@ impl Server {
                     .ok_or_else(|| warp::reject()) // TODO
             });
 
-        let update_challenge_info = warp::path!("challenge-info" / ChallengeId)
+        let update_challenge_data = warp::path!("challenge-data" / ChallengeId)
             .and(warp::post())
             .and(warp::body::json())
             .and(with_provider.clone())
             .and_then(
-                |id, req: UpdateChallengeInfoRequest, provider: Arc<OAuth2Provider>| async move {
+                |id, req: UpdateChallengeDataRequest, provider: Arc<OAuth2Provider>| async move {
                     provider
-                        .update_challenge_info_request(id, req)
+                        .update_challenge_data_request(id, req)
                         .await
                         .map(|i| warp::reply::json(&i))
                         .map_err(|_| warp::reject()) // TODO
@@ -97,8 +97,8 @@ impl Server {
             .and(
                 authenticate
                     .or(token_request)
-                    .or(challenge_info)
-                    .or(update_challenge_info)
+                    .or(challenge_data)
+                    .or(update_challenge_data)
                     .or(challenge)
             )
             .recover(handle_reject)
