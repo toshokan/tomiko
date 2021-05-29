@@ -6,6 +6,7 @@ use crate::core::types::{
 };
 
 pub mod pkce;
+use crate::oidc;
 
 #[derive(Debug, Clone)]
 #[derive(serde::Serialize, serde::Deserialize)]
@@ -16,7 +17,10 @@ pub struct AuthorizationCodeGrantAuthorizationRequest {
     pub state: Option<String>,
     #[serde(flatten)]
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub pkce_challenge: Option<pkce::Challenge>
+    pub pkce_challenge: Option<pkce::Challenge>,
+    #[serde(flatten)]
+    #[serde(deserialize_with = "oidc::AuthorizationCodeGrantAuthorizationRequest::deserialize_skip_default")]
+    pub oidc: Option<oidc::AuthorizationCodeGrantAuthorizationRequest>
 }
 
 #[derive(Debug, Clone)]
@@ -26,6 +30,9 @@ pub struct ImplicitGrantAuthorizationRequest {
     pub redirect_uri: RedirectUri,
     pub scope: Scope,
     pub state: Option<String>,
+    #[serde(flatten)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub oidc: Option<oidc::ImplicitGrantAuthorizationRequest>
 }
 
 #[derive(Debug, Clone)]
