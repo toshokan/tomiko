@@ -51,15 +51,16 @@ impl AuthorizationRequest {
 	
 	match &self {
 	    AuthorizationCode(AuthorizationCodeGrantAuthorizationRequest {
-		client_id, redirect_uri, state, ..
+		client_id, redirect_uri, state, scope, ..
 	    }) |
 	    Implicit(ImplicitGrantAuthorizationRequest {
-		client_id, redirect_uri, state, ..
+		client_id, redirect_uri, state, scope, ..
 	    }) => {
 		AuthorizationRequestParts {
 		    client_id,
 		    redirect_uri,
-		    state
+		    state,
+		    scope
 		}
 	    }
 	}
@@ -70,7 +71,8 @@ impl AuthorizationRequest {
 pub struct AuthorizationRequestParts<'r> {
     pub client_id: &'r ClientId,
     pub redirect_uri: &'r RedirectUri,
-    pub state: &'r Option<String>
+    pub state: &'r Option<String>,
+    pub scope: &'r Scope
 }
 
 #[derive(Debug)]
@@ -140,9 +142,15 @@ pub struct TokenType(String);
 pub struct AccessTokenResponse {
     pub access_token: String,
     pub token_type: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub refresh_token: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub expires_in: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub scope: Option<Scope>,
+    #[serde(flatten)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub oidc: Option<oidc::AccessTokenResponse>
 }
 
 #[derive(Debug, Clone)]
