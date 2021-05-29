@@ -24,6 +24,10 @@ impl Scope {
         self.0.join(" ")
     }
 
+    pub fn borrow_parts(&self) -> &[String] {
+	self.0.as_slice()
+    }
+
     pub fn as_parts(&self) -> Vec<String> {
         self.0.iter().cloned().collect()
     }
