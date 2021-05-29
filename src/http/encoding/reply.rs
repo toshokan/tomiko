@@ -41,6 +41,14 @@ pub fn form_encode(
         .map_err(|e| warp::reject::custom::<AuthRejection>(e.into()))
 }
 
+pub fn json_encode(
+    value: Result<impl serde::Serialize, impl Into<AuthRejection>>
+) -> Result<impl Reply, Rejection> {
+    value
+        .map(|v| warp::reply::json(&v))
+	.map_err(|e| warp::reject::custom::<AuthRejection>(e.into()))
+}
+
 pub fn reply<T, E>(result: Result<T, E>) -> Result<Response, Rejection>
 where
     T: Reply,

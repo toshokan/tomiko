@@ -4,7 +4,7 @@ use crate::core::types::ChallengeId;
 use std::sync::Arc;
 use warp::{Filter, Rejection};
 
-use super::encoding::{error::handle_reject, reply::form_encode, reply::reply, WithCredentials};
+use super::encoding::{error::handle_reject, reply::json_encode, reply::reply, WithCredentials};
 use http_basic_auth::Credential as BasicCredentials;
 
 use crate::provider::OAuth2Provider;
@@ -55,7 +55,7 @@ impl Server {
             .and(body_with_credentials())
             .and_then(|provider: Arc<OAuth2Provider>, (credentials, req)| async move {
                 let result = provider.access_token_request(credentials, req).await;
-		form_encode(result)
+		json_encode(result)
             });
 
         let challenge_data = warp::path!("challenge-info" / ChallengeId)
