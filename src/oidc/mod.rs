@@ -7,6 +7,7 @@ use models::AuthorizationRequest;
 
 pub type AuthorizationCodeGrantAuthorizationRequest = AuthorizationRequest<Option<Nonce>>;
 pub type ImplicitGrantAuthorizationRequest = AuthorizationRequest<Nonce>;
+pub use models::AccessTokenResponse;
 
 impl Scope {
     pub fn has_openid(&self) -> bool {
