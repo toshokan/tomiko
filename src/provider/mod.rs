@@ -86,11 +86,15 @@ impl OAuth2Provider {
     ) -> Result<
         MaybeChallenge<Redirect<AuthorizationResponse>>,
         MaybeRedirect<WithState<AuthorizationError>, BadRequest>,
-    > {
+	> {
 	let parts = req.as_parts();
 	self.validate_client(&parts.client_id, &parts.redirect_uri, &parts.state)
             .await?;
         let state = parts.state.clone();
+
+	if parts.scope.has_openid() {
+	    // TODO
+	}
 
         let uri = parts.redirect_uri.clone();
         let info = ChallengeData {
@@ -140,6 +144,7 @@ impl OAuth2Provider {
                         refresh_token: None,
                         expires_in: None,
                         scope: Some(data.req.scope),
+			oidc: None
                     })
                 } else {
                     Err(AccessTokenErrorKind::InvalidGrant.into())
@@ -161,6 +166,7 @@ impl OAuth2Provider {
                     refresh_token: None,
                     expires_in: None,
                     scope: Some(scope),
+		    oidc: None
                 })
             }
             _ => unimplemented!(),
@@ -242,6 +248,7 @@ impl OAuth2Provider {
                             refresh_token: None,
                             expires_in: None,
                             scope: Some(req.scope),
+			    oidc: None
                         }))
                     }
                 }
