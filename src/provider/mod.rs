@@ -7,7 +7,7 @@ use crate::{
         AccessTokenError, AccessTokenErrorKind, AccessTokenResponse, AuthenticationCodeResponse,
         AuthorizationError, AuthorizationRequest, AuthorizationResponse, BadRequest,
         ChallengeData, ClientCredentials, MaybeRedirect, Redirect, Store, TokenRequest,
-        UpdateChallengeDataRequest, UpdateChallengeDataResponse, WithState,
+        TokenType, UpdateChallengeDataRequest, UpdateChallengeDataResponse, WithState,
     },
     core::{models::AuthCodeData, types::AuthCode},
 };
@@ -136,7 +136,7 @@ impl OAuth2Provider {
 
                 if &data.req.redirect_uri == &req.redirect_uri {
                     let access_token = self.token.new_token(&client.id, &data.req.scope);
-                    let token_type = TokenService::token_type().to_string();
+                    let token_type = TokenService::token_type();
 
                     Ok(AccessTokenResponse {
                         access_token,
@@ -158,7 +158,7 @@ impl OAuth2Provider {
                     .expect("Trim scopes issue");
 
                 let access_token = self.token.new_token(&client.id, &scope);
-                let token_type = TokenService::token_type().to_string();
+                let token_type = TokenService::token_type();
 
                 Ok(AccessTokenResponse {
                     access_token,
@@ -236,7 +236,7 @@ impl OAuth2Provider {
                     AuthorizationRequest::Implicit(req) |
 		    AuthorizationRequest::ImplicitId(req) => {
                         let access_token = self.token.new_token(&req.client_id, &req.scope);
-                        let token_type = TokenService::token_type().to_string();
+                        let token_type = TokenService::token_type();
 
 			let state = req.state.clone();
                         if !info.ok {
@@ -305,8 +305,8 @@ impl TokenService {
         Self { secret }
     }
 
-    pub fn token_type() -> &'static str {
-        "application/jwt"
+    pub fn token_type() -> TokenType {
+	TokenType::Bearer
     }
 
     fn current_timestamp() -> std::time::Duration {

@@ -144,13 +144,15 @@ impl AuthenticationCodeResponse {
 
 #[derive(Debug)]
 #[derive(serde::Serialize)]
-pub struct TokenType(String);
+pub enum TokenType {
+    Bearer
+}
 
 #[derive(serde::Serialize)]
 #[derive(Debug)]
 pub struct AccessTokenResponse {
     pub access_token: String,
-    pub token_type: String,
+    pub token_type: TokenType,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub refresh_token: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
