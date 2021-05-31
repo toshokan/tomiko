@@ -1,4 +1,4 @@
-use crate::auth::AuthorizationCodeGrantAuthorizationRequest;
+use crate::auth::{AuthorizationCodeRequestExt, AuthorizationRequestData};
 
 use super::types::*;
 
@@ -12,7 +12,7 @@ pub struct Client {
 pub struct AuthCodeData {
     pub code: AuthCode,
     pub client_id: ClientId,
-    pub req: AuthorizationCodeGrantAuthorizationRequest
+    pub req: AuthorizationRequestData<AuthorizationCodeRequestExt>
 }
 
 #[derive(Debug)]

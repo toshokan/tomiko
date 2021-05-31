@@ -130,7 +130,7 @@ impl OAuth2Provider {
                     .await
                     .map_err(|_| AccessTokenErrorKind::InvalidGrant)?;
 
-		if let Some(challenge) = data.req.pkce_challenge {
+		if let Some(challenge) = data.req.ext.pkce_challenge {
 		    pkce::verify(&challenge, req.pkce_verifier.as_ref())?;
 		}
 
@@ -233,7 +233,8 @@ impl OAuth2Provider {
                             AuthenticationCodeResponse::new(code, state),
                         ))
                     }
-                    AuthorizationRequest::Implicit(req) => {
+                    AuthorizationRequest::Implicit(req) |
+		    AuthorizationRequest::ImplicitId(req) => {
                         let access_token = self.token.new_token(&req.client_id, &req.scope);
                         let token_type = TokenService::token_type().to_string();
 

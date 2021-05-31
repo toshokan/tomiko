@@ -10,11 +10,7 @@ use crate::oidc;
 
 #[derive(Debug, Clone)]
 #[derive(serde::Serialize, serde::Deserialize)]
-pub struct AuthorizationCodeGrantAuthorizationRequest {
-    pub client_id: ClientId,
-    pub redirect_uri: RedirectUri,
-    pub scope: Scope,
-    pub state: Option<String>,
+pub struct AuthorizationCodeRequestExt {
     #[serde(flatten)]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub pkce_challenge: Option<pkce::Challenge>,
@@ -23,13 +19,10 @@ pub struct AuthorizationCodeGrantAuthorizationRequest {
     pub oidc: Option<oidc::AuthorizationCodeGrantAuthorizationRequest>
 }
 
+
 #[derive(Debug, Clone)]
 #[derive(serde::Serialize, serde::Deserialize)]
-pub struct ImplicitGrantAuthorizationRequest {
-    pub client_id: ClientId,
-    pub redirect_uri: RedirectUri,
-    pub scope: Scope,
-    pub state: Option<String>,
+pub struct ImplicitRequestExt {
     #[serde(flatten)]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub oidc: Option<oidc::ImplicitGrantAuthorizationRequest>
@@ -37,12 +30,25 @@ pub struct ImplicitGrantAuthorizationRequest {
 
 #[derive(Debug, Clone)]
 #[derive(serde::Serialize, serde::Deserialize)]
+pub struct AuthorizationRequestData<E> {
+    pub client_id: ClientId,
+    pub redirect_uri: RedirectUri,
+    pub scope: Scope,
+    pub state: Option<String>,
+    #[serde(flatten)]
+    pub ext: E
+}
+
+#[derive(Debug, Clone)]
+#[derive(serde::Serialize, serde::Deserialize)]
 #[serde(tag = "response_type")]
 pub enum AuthorizationRequest {
     #[serde(rename = "code")]
-    AuthorizationCode(AuthorizationCodeGrantAuthorizationRequest),
+    AuthorizationCode(AuthorizationRequestData<AuthorizationCodeRequestExt>),
     #[serde(rename = "token")]
-    Implicit(ImplicitGrantAuthorizationRequest),
+    Implicit(AuthorizationRequestData<ImplicitRequestExt>),
+    #[serde(rename = "id_token token")]
+    ImplicitId(AuthorizationRequestData<ImplicitRequestExt>)
 }
 
 impl AuthorizationRequest {
@@ -50,12 +56,15 @@ impl AuthorizationRequest {
 	use AuthorizationRequest::*;
 	
 	match &self {
-	    AuthorizationCode(AuthorizationCodeGrantAuthorizationRequest {
+	    AuthorizationCode(AuthorizationRequestData {
 		client_id, redirect_uri, state, scope, ..
 	    }) |
-	    Implicit(ImplicitGrantAuthorizationRequest {
+	    Implicit(AuthorizationRequestData {
 		client_id, redirect_uri, state, scope, ..
-	    }) => {
+	    }) |
+	    ImplicitId(AuthorizationRequestData {
+		client_id, redirect_uri, state, scope, ..
+	    })=> {
 		AuthorizationRequestParts {
 		    client_id,
 		    redirect_uri,
@@ -297,23 +306,12 @@ pub struct ChallengeInfo {
 
 impl From<ChallengeData> for ChallengeInfo {
     fn from(data: ChallengeData) -> Self {
-	match data.req {
-	    AuthorizationRequest::AuthorizationCode(req) => {
-		Self {
-		    id: data.id,
-		    client_id: req.client_id,
-		    scope: req.scope,
-		    ok: data.ok
-		}
-	    }
-	    AuthorizationRequest::Implicit(req) => {
-		Self {
-		    id: data.id,
-		    client_id: req.client_id,
-		    scope: req.scope,
-		    ok: data.ok
-		}
-	    }
+	let parts = data.req.as_parts();
+	Self {
+	    id: data.id,
+	    client_id: parts.client_id.clone(),
+	    scope: parts.scope.clone(),
+	    ok: data.ok
 	}
     }
 }
