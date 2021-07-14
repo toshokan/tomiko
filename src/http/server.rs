@@ -91,6 +91,9 @@ impl Server {
 		reply(result)
 	    });
 
+	let cors = warp::cors()
+	    .allow_any_origin();
+
         let routes = oauth
             .and(warp::path("v1"))
             .and(
@@ -101,7 +104,8 @@ impl Server {
                     .or(challenge)
             )
             .recover(handle_reject)
-            .with(warp::log("http-api"));
+            .with(warp::log("http-api"))
+            .with(cors);
 
         warp::serve(routes).run(([127, 0, 0, 1], 8001)).await;
 
