@@ -31,7 +31,7 @@ impl<T: Reply> Reply for MaybeChallenge<T> {
 		    #[serde(rename = "challenge-id")]
 		    id: ChallengeId
 		}
-		let login_uri = RedirectUri("http://localhost:8002/login".to_string());
+		let login_uri = RedirectUri("http://localhost:3000/challenge".to_string());
 		Redirect::new(
 		    login_uri,
 		    ChallengeRef {
