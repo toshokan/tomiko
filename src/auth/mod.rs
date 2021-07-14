@@ -157,8 +157,6 @@ pub struct AccessTokenResponse {
     pub refresh_token: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub expires_in: Option<u32>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub scope: Option<Scope>,
     #[serde(flatten)]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub oidc: Option<oidc::AccessTokenResponse>
