@@ -42,5 +42,5 @@ where
 #[derive(Debug, Clone, Default, PartialEq)]
 #[derive(serde::Serialize, serde::Deserialize)]
 pub struct AccessTokenResponse {
-    id_token: String
+    pub id_token: String
 }

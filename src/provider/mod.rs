@@ -138,12 +138,20 @@ impl OAuth2Provider {
                     let access_token = self.token.new_token(&client.id, &data.req.scope);
                     let token_type = TokenService::token_type();
 
+		    let oidc = if data.req.scope.has_openid() || data.req.ext.oidc.is_some() {
+			Some(crate::oidc::AccessTokenResponse {
+			    id_token: self.token.new_id_token(&client.id, "nobody") // TODO: get from challenge data
+			})
+		    } else {
+			None
+		    };
+
                     Ok(AccessTokenResponse {
                         access_token,
                         token_type,
                         refresh_token: None,
                         expires_in: None,
-			oidc: None
+			oidc
                     })
                 } else {
                     Err(AccessTokenErrorKind::InvalidGrant.into())
@@ -335,6 +343,31 @@ impl TokenService {
 
         encode(&header, &claims, &self.secret).expect("Failed to encode token claims")
     }
+
+    pub fn new_id_token(&self, client_id: &ClientId, subject: &str) -> String {
+	use jsonwebtoken::{encode, Algorithm, Header};
+
+        let time_now = Self::current_timestamp().as_secs();
+        let expiry = time_now + 3600;
+
+	let claims = TomikoIdClaims {
+            sub: subject.to_string(),
+	    iss: "tomiko".to_string(),
+	    aud: client_id.0.to_string(),
+	    exp: expiry,
+            iat: time_now,
+	    auth_time: time_now, // TODO: get from challenge data
+	    nonce: None,
+	    azp: client_id.0.to_string(),
+        };
+
+        let header = Header {
+            alg: Algorithm::ES256,
+            ..Default::default()
+        };
+
+        encode(&header, &claims, &self.secret).expect("Failed to encode token claims")
+    }
 }
 
 async fn tomikod(config: Config) -> Option<()> {
@@ -371,6 +404,19 @@ struct TomikoClaims {
     iat: u64,
     exp: u64,
     scope: Scope,
+}
+
+#[derive(serde::Serialize, serde::Deserialize)]
+struct TomikoIdClaims {
+    sub: String,
+    iss: String,
+    aud: String,
+    exp: u64,
+    iat: u64,
+    auth_time: u64,
+    #[serde(skip_serializing_if="Option::is_none")]
+    nonce: Option<String>,
+    azp: String
 }
 
 impl Config {
