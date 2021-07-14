@@ -143,7 +143,6 @@ impl OAuth2Provider {
                         token_type,
                         refresh_token: None,
                         expires_in: None,
-                        scope: Some(data.req.scope),
 			oidc: None
                     })
                 } else {
@@ -165,7 +164,6 @@ impl OAuth2Provider {
                     token_type,
                     refresh_token: None,
                     expires_in: None,
-                    scope: Some(scope),
 		    oidc: None
                 })
             }
@@ -248,7 +246,6 @@ impl OAuth2Provider {
                             token_type,
                             refresh_token: None,
                             expires_in: None,
-                            scope: Some(req.scope),
 			    oidc: None
                         }))
                     }
@@ -271,7 +268,7 @@ impl OAuth2Provider {
             .await?
             .expect("No matching challenge");
         info.ok = match req {
-            UpdateChallengeDataRequest::Accept => true,
+            UpdateChallengeDataRequest::Accept{..} => true,
             UpdateChallengeDataRequest::Reject => false,
         };
         self.store.update_challenge_data(info).await?;

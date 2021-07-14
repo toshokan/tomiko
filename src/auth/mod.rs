@@ -320,8 +320,12 @@ impl From<ChallengeData> for ChallengeInfo {
 
 #[derive(Debug)]
 #[derive(serde::Deserialize)]
+#[serde(tag = "action")]
+#[serde(rename_all = "snake_case")]
 pub enum UpdateChallengeDataRequest {
-    Accept,
+    Accept {
+	subject: String
+    },
     Reject,
 }
 
