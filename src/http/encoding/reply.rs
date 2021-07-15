@@ -49,6 +49,13 @@ pub fn json_encode(
 	.map_err(|e| warp::reject::custom::<AuthRejection>(e.into()))
 }
 
+pub fn accept<T, E>(result: Result<T, E>) -> Result<T, Rejection>
+where
+    E: Into<AuthRejection>
+{
+    result.map_err(|e| warp::reject::custom(e.into()))
+}
+
 pub fn reply<T, E>(result: Result<T, E>) -> Result<Response, Rejection>
 where
     T: Reply,

@@ -12,6 +12,12 @@ pub enum AuthRejection {
 
 impl warp::reject::Reject for AuthRejection {}
 
+impl From<BadRequest> for AuthRejection {
+    fn from(error: BadRequest) -> Self {
+	Self::BadRequest(error)
+    }
+}
+
 impl From<Redirect<WithState<AuthorizationError>>> for AuthRejection {
     fn from(error: Redirect<WithState<AuthorizationError>>) -> Self {
         Self::Authorization(error)

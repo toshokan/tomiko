@@ -112,3 +112,6 @@ impl std::str::FromStr for ChallengeId {
         Ok(Self(s.to_string()))
     }
 }
+
+#[derive(Debug)]
+pub struct BearerToken(pub String);

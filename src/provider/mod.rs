@@ -1,6 +1,6 @@
 use crate::auth::{ChallengeInfo, MaybeChallenge::{self, *}, pkce};
 use crate::core::models::Client;
-use crate::core::types::{ChallengeId, ClientId, RedirectUri, Scope};
+use crate::core::types::{BearerToken, ChallengeId, ClientId, RedirectUri, Scope};
 use crate::oidc::types::Nonce;
 use crate::util::{hash::HashingService, random::FromRandom};
 use crate::{
@@ -15,7 +15,7 @@ use crate::{
 
 use crate::db::DbStore;
 use crate::http::server::Server;
-use jsonwebtoken::EncodingKey;
+use jsonwebtoken::{DecodingKey, EncodingKey};
 use std::sync::Arc;
 
 #[derive(Debug)]
@@ -185,7 +185,17 @@ impl OAuth2Provider {
         }
     }
 
-    pub async fn get_challenge_info(&self, id: ChallengeId) -> Option<ChallengeInfo> {
+    pub fn validate_token_for_challenge(&self, token: BearerToken) -> Option<()> {
+	let claims = self.token.validate_token(&token.0).ok()?;
+	if let Some(scope) = claims.scope {
+	    scope.borrow_parts().iter().find(|s| s == &"tomiko::challenge:rw").map(|_| ())
+	} else {
+	    None
+	}
+    }
+
+    pub async fn get_challenge_info(&self, token: BearerToken, id: ChallengeId) -> Option<ChallengeInfo> {
+	self.validate_token_for_challenge(token)?;
 	self.store
 	    .get_challenge_data(&id)
 	    .await
@@ -302,9 +312,12 @@ impl OAuth2Provider {
 
     pub async fn update_challenge_data_request(
         &self,
+	token: BearerToken,
         id: ChallengeId,
         req: UpdateChallengeDataRequest,
     ) -> Result<crate::auth::UpdateChallengeDataResponse, ()> {
+	self.validate_token_for_challenge(token).ok_or_else(|| ())?;
+	
         let mut info = self
             .store
             .get_challenge_data(&id)
@@ -326,6 +339,7 @@ impl OAuth2Provider {
 
 struct TokenService {
     secret: EncodingKey,
+    public: DecodingKey<'static>
 }
 
 impl std::fmt::Debug for TokenService {
@@ -335,17 +349,28 @@ impl std::fmt::Debug for TokenService {
 }
 
 impl TokenService {
-    pub fn new(secret_path: &str) -> Self {
+    pub fn new(secret_path: &str, public_path: &str) -> Self {
         use std::io::Read;
 
-        let mut contents = Vec::new();
-        std::fs::File::open(&secret_path)
-            .expect("Failed to open secret")
-            .read_to_end(&mut contents)
-            .expect("Failed to read secret");
-        let secret = EncodingKey::from_ec_pem(&contents).expect("Failed to parse secret");
+        let secret = {
+	    let mut contents = Vec::new();
+            std::fs::File::open(&secret_path)
+		.expect("Failed to open secret")
+		.read_to_end(&mut contents)
+		.expect("Failed to read secret");
+            EncodingKey::from_ec_pem(&contents).expect("Failed to parse secret")
+	};
 
-        Self { secret }
+	let public = {
+	    let mut contents = Vec::new();
+            std::fs::File::open(&public_path)
+		.expect("Failed to open public key")
+		.read_to_end(&mut contents)
+		.expect("Failed to read public key");
+            DecodingKey::from_ec_pem(&contents).expect("Failed to parse public key").into_static()
+	};
+
+        Self { secret, public }
     }
 
     pub fn token_type() -> TokenType {
@@ -358,6 +383,18 @@ impl TokenService {
 
         now.duration_since(SystemTime::UNIX_EPOCH)
             .expect("Unix Epoch is in the past.")
+    }
+
+    pub fn validate_token(&self, token: &str) -> Result<AccessClaims, ()> {
+	let mut validation = jsonwebtoken::Validation::default();
+	validation.iss = Some("tomiko".to_string());
+	validation.algorithms = vec![jsonwebtoken::Algorithm::ES256];
+	jsonwebtoken::decode::<AccessClaims>(token, &self.public, &validation)
+	    .map(|td| td.claims)
+	    .map_err(|e| {
+		dbg!(e);
+		()
+	    })
     }
 
     pub fn new_token(&self, client_id: &ClientId, subject: &str, scope: &Scope) -> String {
@@ -414,7 +451,7 @@ impl TokenService {
 async fn tomikod(config: Config) -> Option<()> {
     let store = DbStore::acquire(&config.database_url).await.ok()?;
     let hasher = HashingService::with_secret_key(config.hash_secret);
-    let token = TokenService::new(&config.jwt_private_key_file);
+    let token = TokenService::new(&config.jwt_private_key_file, &config.jwt_public_key_file);
     let provider = Arc::new(OAuth2Provider {
         store,
         hasher,
@@ -436,8 +473,10 @@ pub struct Config {
     database_url: String,
     hash_secret: String,
     jwt_private_key_file: String,
+    jwt_public_key_file: String,
 }
 
+#[derive(Debug)]
 #[derive(serde::Serialize, serde::Deserialize)]
 struct AccessClaims {
     iss: String,
@@ -471,6 +510,8 @@ impl Config {
             hash_secret: std::env::var("HASH_SECRET").expect("Supply HASH_SECRET"),
             jwt_private_key_file: std::env::var("JWT_PRIVATE_KEY_FILE")
                 .expect("Supply JWT_PRIVATE_KEY_FILE"),
+	    jwt_public_key_file: std::env::var("JWT_PUBLIC_KEY_FILE")
+                .expect("Supply JWT_PUBLIC_KEY_FILE"),
         }
     }
 }

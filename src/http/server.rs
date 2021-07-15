@@ -1,10 +1,10 @@
 use crate::auth::{ClientCredentials, UpdateChallengeDataRequest};
-use crate::core::types::ChallengeId;
+use crate::core::types::{BearerToken, ChallengeId};
 
 use std::sync::Arc;
 use warp::{Filter, Rejection};
 
-use super::encoding::{error::handle_reject, reply::json_encode, reply::reply, WithCredentials};
+use super::encoding::{error::handle_reject, reply::accept, reply::json_encode, reply::reply, WithCredentials};
 use http_basic_auth::Credential as BasicCredentials;
 
 use crate::provider::OAuth2Provider;
@@ -24,6 +24,18 @@ fn body_with_credentials<T: serde::de::DeserializeOwned + Send>(
         .or(body)
         .unify()
         .map(|w: WithCredentials<T>| w.split())
+}
+
+fn bearer() -> impl Filter<Extract = (BearerToken,), Error = Rejection> + Clone {
+    warp::header("Authorization")
+        .and_then(|s: String| async move {
+	    let token = match s.split_once("Bearer ") {
+		Some(("", token)) => Ok(token.to_string()),
+		_ => Err(crate::auth::BadRequest::BadToken)
+	    };
+	    accept(token)
+		.map(|t| BearerToken(t))
+	})
 }
 
 impl Server {
@@ -61,9 +73,10 @@ impl Server {
         let challenge_data = warp::path!("challenge-info" / ChallengeId)
             .and(warp::get())
             .and(with_provider.clone())
-            .and_then(|id, provider: Arc<OAuth2Provider>| async move {
+            .and(bearer())
+            .and_then(|id, provider: Arc<OAuth2Provider>, token| async move {
                 provider
-                    .get_challenge_info(id)
+                    .get_challenge_info(token, id)
                     .await
                     .map(|i| warp::reply::json(&i))
                     .ok_or_else(|| warp::reject()) // TODO
@@ -73,10 +86,11 @@ impl Server {
             .and(warp::post())
             .and(warp::body::json())
             .and(with_provider.clone())
+            .and(bearer())
             .and_then(
-                |id, req: UpdateChallengeDataRequest, provider: Arc<OAuth2Provider>| async move {
+                |id, req: UpdateChallengeDataRequest, provider: Arc<OAuth2Provider>, token| async move {
                     provider
-                        .update_challenge_data_request(id, req)
+                        .update_challenge_data_request(token, id, req)
                         .await
                         .map(|i| warp::reply::json(&i))
                         .map_err(|_| warp::reject()) // TODO

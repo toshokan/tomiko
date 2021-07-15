@@ -164,7 +164,8 @@ pub struct AccessTokenResponse {
 #[derive(Debug, Clone)]
 pub enum BadRequest {
     BadRedirect,
-    BadChallenge
+    BadChallenge,
+    BadToken
 }
 
 #[derive(Debug)]
