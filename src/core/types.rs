@@ -7,7 +7,7 @@ pub enum GrantType {
     AuthorizationCode,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Eq)]
 pub struct Scope(Vec<String>);
 
 impl Scope {
@@ -30,6 +30,16 @@ impl Scope {
 
     pub fn as_parts(&self) -> Vec<String> {
         self.0.iter().cloned().collect()
+    }
+}
+
+impl PartialEq for Scope {
+    fn eq(&self, other: &Self) -> bool {
+	let mut lhs = self.as_parts();
+	let mut rhs = other.as_parts();
+	lhs.sort();
+	rhs.sort();
+	lhs == rhs
     }
 }
 

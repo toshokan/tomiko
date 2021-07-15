@@ -166,6 +166,10 @@ impl OAuth2Provider {
                     .await
                     .expect("Trim scopes issue");
 
+		if scope != req.scope {
+		    return Err(AccessTokenErrorKind::InvalidGrant.into());
+		}
+
                 let access_token = self.token.new_token(&client.id, &client.id.0.to_string(), &scope);
                 let token_type = TokenService::token_type();
 
