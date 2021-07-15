@@ -3,7 +3,7 @@ use super::types::{Display, Prompt};
 #[derive(Debug, Clone, Default, PartialEq)]
 #[derive(serde::Serialize, serde::Deserialize)]
 pub struct AuthorizationRequest<N> {
-    nonce: N,
+    pub nonce: N,
     display: Option<Display>,
     prompt: Option<Prompt>,
     max_age: Option<u64>,

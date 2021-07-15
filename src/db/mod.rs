@@ -52,11 +52,12 @@ impl Store for DbStore {
 	let req = serde_json::to_string(&data.req).expect("bad db serialize");
 
         sqlx::query!(
-            "INSERT INTO codes(client_id, code, req, invalid_after) VALUES(?, ?, ?, ?)",
+            "INSERT INTO codes(client_id, code, req, invalid_after, subject) VALUES(?, ?, ?, ?, ?)",
             data.client_id.0,
             data.code.0,
 	    req,
-	    invalid_after
+	    invalid_after,
+	    data.subject
         )
             .execute(&self.pool)
             .await
@@ -114,7 +115,8 @@ impl Store for DbStore {
         .map(|r| AuthCodeData {
             code: AuthCode(r.code),
 	    client_id: ClientId(r.client_id),
-	    req: serde_json::from_str(&r.req).expect("Bad db deserialize")
+	    req: serde_json::from_str(&r.req).expect("Bad db deserialize"),
+	    subject: r.subject
         });
 
         result.ok_or(())
@@ -191,6 +193,7 @@ impl Store for DbStore {
                     id: ChallengeId(r.id),
                     req: serde_json::from_str(&r.req).expect("Bad db deserialize"),
 		    ok: r.ok,
+		    subject: r.subject
                 })
             })
             .map_err(|_| ())?;
@@ -203,10 +206,11 @@ impl Store for DbStore {
 	let req = serde_json::to_string(&info.req).expect("Bad db serialize");
 	
 	let result = sqlx::query!(
-	    "UPDATE challenges SET req = ?, ok = ? WHERE id = ?",
+	    "UPDATE challenges SET req = ?, ok = ?, subject = ? WHERE id = ?",
 	    req,
 	    info.ok,
-	    id.0
+	    info.subject,
+	    id.0,
 	)
 	.execute(&self.pool)
 	.await

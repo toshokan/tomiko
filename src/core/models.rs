@@ -12,7 +12,8 @@ pub struct Client {
 pub struct AuthCodeData {
     pub code: AuthCode,
     pub client_id: ClientId,
-    pub req: AuthorizationRequestData<AuthorizationCodeRequestExt>
+    pub req: AuthorizationRequestData<AuthorizationCodeRequestExt>,
+    pub subject: String
 }
 
 #[derive(Debug)]

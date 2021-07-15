@@ -22,10 +22,9 @@ pub struct AuthorizationCodeRequestExt {
 
 #[derive(Debug, Clone)]
 #[derive(serde::Serialize, serde::Deserialize)]
-pub struct ImplicitRequestExt {
+pub struct ImplicitRequestExt<O> {
     #[serde(flatten)]
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub oidc: Option<oidc::ImplicitGrantAuthorizationRequest>
+    pub oidc: O
 }
 
 #[derive(Debug, Clone)]
@@ -46,9 +45,9 @@ pub enum AuthorizationRequest {
     #[serde(rename = "code")]
     AuthorizationCode(AuthorizationRequestData<AuthorizationCodeRequestExt>),
     #[serde(rename = "token")]
-    Implicit(AuthorizationRequestData<ImplicitRequestExt>),
+    Implicit(AuthorizationRequestData<ImplicitRequestExt<Option<oidc::ImplicitGrantAuthorizationRequest>>>),
     #[serde(rename = "id_token token")]
-    ImplicitId(AuthorizationRequestData<ImplicitRequestExt>)
+    ImplicitId(AuthorizationRequestData<ImplicitRequestExt<oidc::ImplicitGrantAuthorizationRequest>>)
 }
 
 impl AuthorizationRequest {
@@ -292,7 +291,8 @@ pub struct Challenge {
 pub struct ChallengeData {
     pub id: ChallengeId,
     pub req: AuthorizationRequest,
-    pub ok: bool
+    pub ok: bool,
+    pub subject: Option<String>
 }
 
 #[derive(Debug, Clone)]

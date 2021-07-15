@@ -1,6 +1,7 @@
 use crate::auth::{ChallengeInfo, MaybeChallenge::{self, *}, pkce};
 use crate::core::models::Client;
 use crate::core::types::{ChallengeId, ClientId, RedirectUri, Scope};
+use crate::oidc::types::Nonce;
 use crate::util::{hash::HashingService, random::FromRandom};
 use crate::{
     auth::{
@@ -101,6 +102,7 @@ impl OAuth2Provider {
             id: ChallengeId::from_random(),
             req: req.clone(),
             ok: false,
+	    subject: None
         };
 
         let id = self.store.store_challenge_data(info).await.map_err(|_| {
@@ -135,12 +137,12 @@ impl OAuth2Provider {
 		}
 
                 if &data.req.redirect_uri == &req.redirect_uri {
-                    let access_token = self.token.new_token(&client.id, &data.req.scope);
+                    let access_token = self.token.new_token(&client.id, &data.subject, &data.req.scope);
                     let token_type = TokenService::token_type();
 
 		    let oidc = if data.req.scope.has_openid() || data.req.ext.oidc.is_some() {
 			Some(crate::oidc::AccessTokenResponse {
-			    id_token: self.token.new_id_token(&client.id, "nobody") // TODO: get from challenge data
+			    id_token: self.token.new_id_token(&client.id, &data.subject, None) // TODO: grab nonce
 			})
 		    } else {
 			None
@@ -164,7 +166,7 @@ impl OAuth2Provider {
                     .await
                     .expect("Trim scopes issue");
 
-                let access_token = self.token.new_token(&client.id, &scope);
+                let access_token = self.token.new_token(&client.id, &client.id.0.to_string(), &scope);
                 let token_type = TokenService::token_type();
 
                 Ok(AccessTokenResponse {
@@ -218,11 +220,14 @@ impl OAuth2Provider {
                             Err((AuthorizationError::access_denied(), state.clone()))?;
                         }
 
+			let subject = info.subject.expect("Accepted challenge without subject");
+
                         let code = AuthCode::from_random();
                         let data = AuthCodeData {
                             code: code.clone(),
                             client_id: req.client_id.clone(),
                             req: req.clone(),
+			    subject: subject
                         };
 
                         let expiry = std::time::SystemTime::now()
@@ -239,15 +244,17 @@ impl OAuth2Provider {
                             AuthenticationCodeResponse::new(code, state),
                         ))
                     }
-                    AuthorizationRequest::Implicit(req) |
-		    AuthorizationRequest::ImplicitId(req) => {
-                        let access_token = self.token.new_token(&req.client_id, &req.scope);
-                        let token_type = TokenService::token_type();
-
+                    AuthorizationRequest::Implicit(req) => { // TODO: unify logic with ImplicitId below
 			let state = req.state.clone();
                         if !info.ok {
                             Err((AuthorizationError::access_denied(), state.clone()))?;
                         }
+
+			let subject = info.subject.expect("Accepted challenge without subject");
+
+			let access_token = self.token.new_token(&req.client_id, &subject, &req.scope);
+						
+                        let token_type = TokenService::token_type();
 
                         Ok(AuthorizationResponse::Implicit(AccessTokenResponse {
                             access_token,
@@ -255,6 +262,30 @@ impl OAuth2Provider {
                             refresh_token: None,
                             expires_in: None,
 			    oidc: None
+                        }))
+		    },
+		    AuthorizationRequest::ImplicitId(req) => {
+			let state = req.state.clone();
+                        if !info.ok {
+                            Err((AuthorizationError::access_denied(), state.clone()))?;
+                        }
+
+			let subject = info.subject.expect("Accepted challenge without subject");
+
+			let access_token = self.token.new_token(&req.client_id, &subject, &req.scope);
+			let id_token = self.token.new_id_token(&req.client_id, &subject, Some(&req.ext.oidc.nonce));
+			let oidc = Some(crate::oidc::AccessTokenResponse {
+			    id_token
+			});
+			
+                        let token_type = TokenService::token_type();
+
+                        Ok(AuthorizationResponse::Implicit(AccessTokenResponse {
+                            access_token,
+                            token_type,
+                            refresh_token: None,
+                            expires_in: None,
+			    oidc
                         }))
                     }
                 }
@@ -276,8 +307,11 @@ impl OAuth2Provider {
             .await?
             .expect("No matching challenge");
         info.ok = match req {
-            UpdateChallengeDataRequest::Accept{..} => true,
-            UpdateChallengeDataRequest::Reject => false,
+            UpdateChallengeDataRequest::Accept{subject} => {
+		info.subject = Some(subject);
+		true
+	    }
+            UpdateChallengeDataRequest::Reject => false
         };
         self.store.update_challenge_data(info).await?;
         Ok(UpdateChallengeDataResponse {
@@ -322,19 +356,22 @@ impl TokenService {
             .expect("Unix Epoch is in the past.")
     }
 
-    pub fn new_token(&self, client_id: &ClientId, scope: &Scope) -> String {
+    pub fn new_token(&self, client_id: &ClientId, subject: &str, scope: &Scope) -> String {
         use jsonwebtoken::{encode, Algorithm, Header};
 
         let time_now = Self::current_timestamp().as_secs();
         let expiry = time_now + 3600;
 
-        let claims = TomikoClaims {
-            sub: client_id.0.to_string(),
-            scope: scope.clone(),
-            iat: time_now,
-            exp: expiry,
-            iss: "tomiko".to_string(),
-        };
+	let claims = AccessClaims {
+	    iss: "tomiko".to_string(),
+	    exp: expiry,
+	    aud: client_id.0.to_string(),
+	    sub: subject.to_string(),
+	    client_id: client_id.0.to_string(),
+	    iat: time_now,
+	    jti: "<not_implemented>".to_string(),
+	    scope: Some(scope.clone())
+	};
 
         let header = Header {
             alg: Algorithm::ES256,
@@ -344,20 +381,20 @@ impl TokenService {
         encode(&header, &claims, &self.secret).expect("Failed to encode token claims")
     }
 
-    pub fn new_id_token(&self, client_id: &ClientId, subject: &str) -> String {
+    pub fn new_id_token(&self, client_id: &ClientId, subject: &str, nonce: Option<&Nonce>) -> String {
 	use jsonwebtoken::{encode, Algorithm, Header};
 
         let time_now = Self::current_timestamp().as_secs();
         let expiry = time_now + 3600;
 
-	let claims = TomikoIdClaims {
+	let claims = IdClaims {
             sub: subject.to_string(),
 	    iss: "tomiko".to_string(),
 	    aud: client_id.0.to_string(),
 	    exp: expiry,
             iat: time_now,
 	    auth_time: time_now, // TODO: get from challenge data
-	    nonce: None,
+	    nonce: nonce.cloned(),
 	    azp: client_id.0.to_string(),
         };
 
@@ -398,16 +435,20 @@ pub struct Config {
 }
 
 #[derive(serde::Serialize, serde::Deserialize)]
-struct TomikoClaims {
-    sub: String,
+struct AccessClaims {
     iss: String,
-    iat: u64,
     exp: u64,
-    scope: Scope,
+    aud: String,
+    sub: String,
+    client_id: String,
+    iat: u64,
+    jti: String,
+    #[serde(skip_serializing_if="Option::is_none")]
+    scope: Option<Scope>,
 }
 
 #[derive(serde::Serialize, serde::Deserialize)]
-struct TomikoIdClaims {
+struct IdClaims {
     sub: String,
     iss: String,
     aud: String,
@@ -415,7 +456,7 @@ struct TomikoIdClaims {
     iat: u64,
     auth_time: u64,
     #[serde(skip_serializing_if="Option::is_none")]
-    nonce: Option<String>,
+    nonce: Option<Nonce>,
     azp: String
 }
 

@@ -14,3 +14,12 @@ impl Scope {
 	self.borrow_parts().iter().find(|p| p == &"openid").is_some()
     }
 }
+
+impl crate::auth::AuthorizationRequest {
+    pub fn is_openid_grant(&self) -> bool {
+	match self {
+	    Self::ImplicitId{..} => true,
+	    _ => false
+	}
+    }
+}
