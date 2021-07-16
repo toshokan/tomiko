@@ -2,7 +2,7 @@
 
 use crate::auth::{ChallengeData, Store};
 use crate::core::models::{AuthCodeData, Client};
-use crate::core::types::{AuthCode, ChallengeId, ClientId, HashedAuthCode, HashedClientSecret, RedirectUri, Scope};
+use crate::core::types::{ChallengeId, ClientId, HashedAuthCode, HashedClientSecret, RedirectUri, Scope};
 
 use sqlx::sqlite::SqlitePool;
 use std::time::SystemTime;
