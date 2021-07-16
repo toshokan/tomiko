@@ -87,12 +87,30 @@ pub struct RedirectUri(pub String); // TODO
 #[serde(transparent)]
 pub struct ClientSecret(pub String); // TODO
 
+impl AsRef<str> for ClientSecret {
+    fn as_ref(&self) -> &str {
+	&self.0
+    }
+}
+
 #[derive(Debug, Eq, PartialEq)]
 pub struct HashedClientSecret(pub String);
 
 impl HashedClientSecret {
     pub fn from_raw(raw: String) -> Self {
         Self(raw)
+    }
+}
+
+impl From<String> for HashedClientSecret {
+    fn from(s: String) -> Self {
+	Self(s)
+    }
+}
+
+impl AsRef<str> for HashedClientSecret {
+    fn as_ref(&self) -> &str {
+	&self.0
     }
 }
 

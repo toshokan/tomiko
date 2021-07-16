@@ -11,28 +11,44 @@ pub struct HashingService {
     secret_key: String,
 }
 
+pub trait HashTo: AsRef<str> {
+    type HashedType;
+}
+
+impl HashTo for ClientSecret {
+    type HashedType = HashedClientSecret;
+}
+
 impl HashingService {
     pub fn with_secret_key(secret_key: String) -> Self {
         Self { secret_key }
     }
 
-    pub fn hash(&self, secret: &ClientSecret) -> Result<HashedClientSecret, ()> {
-        let mut hasher = argonautica::Hasher::default();
+    pub fn hash<T, H>(&self, to_hash: &T) -> Result<H, ()>
+    where
+	T: HashTo<HashedType = H>,
+	H: From<String>
+    {
+	let s = to_hash.as_ref();
+	let mut hasher = argonautica::Hasher::default();
         let hash = hasher
-            .with_password(&secret.0)
+            .with_password(s)
             .with_secret_key(&self.secret_key)
             .hash()
             .expect("Failed to hash"); // TODO
-
-        Ok(HashedClientSecret(hash))
+	Ok(hash.into())
     }
 
-    pub fn verify(&self, secret: &ClientSecret, hashed: &HashedClientSecret) -> Result<bool, ()> {
-        let mut verifier = argonautica::Verifier::default();
+    pub fn verify<T, H>(&self, secret: &T, hashed: &H) -> Result<bool, ()>
+    where
+	T: HashTo<HashedType = H>,
+	H: AsRef<str>
+    {
+	let mut verifier = argonautica::Verifier::default();
         verifier
             .with_secret_key(&self.secret_key)
-            .with_password(&secret.0)
-            .with_hash(&hashed.0)
+            .with_password(secret.as_ref())
+            .with_hash(hashed.as_ref())
             .verify()
             .map_err(|_| ())
     }
