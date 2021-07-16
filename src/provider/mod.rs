@@ -139,7 +139,7 @@ impl OAuth2Provider {
 		    pkce::verify(&challenge, req.pkce_verifier.as_ref())?;
 		}
 
-                if &data.req.redirect_uri == &req.redirect_uri {
+                if &data.req.redirect_uri == &req.redirect_uri && &data.req.client_id == &credentials.client_id {
                     let access_token = self.token.new_token(&client.id, &data.subject, &data.req.scope);
                     let token_type = TokenService::token_type();
 
