@@ -40,7 +40,7 @@ pub fn verify(challenge: &Challenge, verifier: Option<&Verifier>) -> Result<(), 
 	    Plain => challenge.code == verifier.value,
 	    S256 => {
 		let digest = Sha256::digest(verifier.value.as_bytes());
-		let digest = base64::encode_config(digest, base64::URL_SAFE);
+		let digest = base64::encode_config(digest, base64::URL_SAFE_NO_PAD);
 		digest == challenge.code
 	    }
 	};
