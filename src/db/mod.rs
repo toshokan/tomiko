@@ -122,6 +122,21 @@ impl Store for DbStore {
         result.ok_or(())
     }
 
+    async fn delete_authcode_data(
+	&self,
+	client_id: &ClientId,
+	code: &HashedAuthCode
+    ) -> Result<(), ()> {
+	sqlx::query!(
+	    "DELETE FROM codes WHERE client_id = ? AND code = ?",
+	    client_id.0,
+	    code.0
+	).execute(&self.pool)
+	    .await
+	    .map_err(|_| ())
+	    .map(|_| ())
+    }
+
     async fn clean_up(&self) -> Result<(), ()> {
         use std::convert::TryInto;
 

@@ -387,6 +387,11 @@ pub trait Store {
         client_id: &ClientId,
         code: &HashedAuthCode,
     ) -> Result<AuthCodeData, ()>;
+    async fn delete_authcode_data(
+        &self,
+        client_id: &ClientId,
+        code: &HashedAuthCode,
+    ) -> Result<(), ()>;
     async fn clean_up(&self) -> Result<(), ()>;
     async fn trim_client_scopes(&self, client_id: &ClientId, scope: &Scope) -> Result<Scope, ()>;
     async fn store_challenge_data(&self, info: ChallengeData) -> Result<ChallengeId, ()>;

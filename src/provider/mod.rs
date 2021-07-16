@@ -132,6 +132,9 @@ impl OAuth2Provider {
                     .await
                     .map_err(|_| AccessTokenErrorKind::InvalidGrant)?;
 
+		self.store.delete_authcode_data(&client.id, &hashed_code).await
+		    .map_err(|_| AccessTokenErrorKind::InvalidRequest)?;
+
 		if let Some(challenge) = data.req.ext.pkce_challenge {
 		    pkce::verify(&challenge, req.pkce_verifier.as_ref())?;
 		}
