@@ -26,7 +26,7 @@ pub struct OAuth2Provider {
 }
 
 impl OAuth2Provider {
-    async fn validate_client(
+    pub async fn validate_client(
         &self,
         client_id: &ClientId,
         redirect_uri: &RedirectUri,
@@ -89,8 +89,6 @@ impl OAuth2Provider {
         MaybeRedirect<WithState<AuthorizationError>, BadRequest>,
 	> {
 	let parts = req.as_parts();
-	self.validate_client(&parts.client_id, &parts.redirect_uri, &parts.state)
-            .await?;
         let state = parts.state.clone();
 
 	if parts.scope.has_openid() {
@@ -335,7 +333,7 @@ impl OAuth2Provider {
         };
         self.store.update_challenge_data(info).await?;
         Ok(UpdateChallengeDataResponse {
-            redirect_to: format!("http://localhost:8001/oauth/v1/challenge/{}", id.0),
+            redirect_to: format!("http://localhost:8001/challenge/v1/continue/{}", id.0),
         })
     }
 }

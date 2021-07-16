@@ -49,6 +49,7 @@ impl Server {
         let provider = self.provider;
 
         let oauth = warp::path("oauth");
+	let challenge = warp::path("challenge");
         let with_provider = warp::any().map(move || provider.clone());
 
 	// Either a redirect success, a redirect error, or a direct error
@@ -70,7 +71,7 @@ impl Server {
 		json_encode(result)
             });
 
-        let challenge_data = warp::path!("challenge-info" / ChallengeId)
+        let challenge_data = warp::path!("info" / ChallengeId)
             .and(warp::get())
             .and(with_provider.clone())
             .and(bearer())
@@ -82,7 +83,7 @@ impl Server {
                     .ok_or_else(|| warp::reject()) // TODO
             });
 
-        let update_challenge_data = warp::path!("challenge-data" / ChallengeId)
+        let challenge_update = warp::path!("data" / ChallengeId)
             .and(warp::post())
             .and(warp::body::json())
             .and(with_provider.clone())
@@ -97,7 +98,7 @@ impl Server {
                 },
             );
 
-	let challenge = warp::path!("challenge" / ChallengeId)
+	let challenge_continue = warp::path!("continue" / ChallengeId)
 	    .and(warp::get())
 	    .and(with_provider.clone())
 	    .and_then(|id, provider: Arc<OAuth2Provider>| async move {
@@ -108,15 +109,23 @@ impl Server {
 	let cors = warp::cors()
 	    .allow_any_origin();
 
-        let routes = oauth
-            .and(warp::path("v1"))
-            .and(
-                authenticate
-                    .or(token_request)
-                    .or(challenge_data)
-                    .or(update_challenge_data)
-                    .or(challenge)
-            )
+        let routes =
+	    (
+		oauth
+		    .and(warp::path("v1"))
+		    .and(
+			authenticate
+			    .or(token_request)
+		    ))
+	    .or(
+		challenge
+		    .and(warp::path("v1"))
+		    .and(
+			challenge_data
+			    .or(challenge_update)
+			    .or(challenge_continue)
+		    )
+	    )
             .recover(handle_reject)
             .with(warp::log("http-api"))
             .with(cors);
