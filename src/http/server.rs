@@ -9,6 +9,35 @@ use http_basic_auth::Credential as BasicCredentials;
 
 use crate::provider::OAuth2Provider;
 
+pub trait PeekOwned<T> {
+    fn peek(&self) -> T;
+}
+
+pub fn validate_client<'p, T, F>(filter: F) -> impl Filter<Extract = ((Arc<OAuth2Provider>, T),), Error = Rejection> + Clone
+where
+    T: PeekOwned<(crate::core::types::ClientId, crate::core::types::RedirectUri)> + Send,
+    F: Filter<Extract = (Arc<OAuth2Provider>, T), Error = Rejection> + Clone + Send
+{
+    filter.and_then(|p: Arc<OAuth2Provider>, t: T| async move {
+	let (c, r) = t.peek();
+	if p.validate_client(&c, &r, &None).await.is_err() {
+	    Err(warp::reject::custom(
+		super::encoding::error::AuthRejection::BadRequest(crate::auth::BadRequest::BadRedirect)
+	    ))
+	} else {
+	    Ok((p, t))
+	}
+	
+    })
+}
+
+impl PeekOwned<(crate::core::types::ClientId, crate::core::types::RedirectUri)> for crate::auth::AuthorizationRequest {
+    fn peek(&self) -> (crate::core::types::ClientId, crate::core::types::RedirectUri) {
+	let parts = &self.as_parts();
+	(parts.client_id.clone(), parts.redirect_uri.clone())
+    }
+}
+
 #[derive(Debug)]
 pub struct Server {
     provider: Arc<OAuth2Provider>,
@@ -56,6 +85,8 @@ impl Server {
         let authenticate = warp::path("authenticate")
             .and(with_provider.clone())
             .and(warp::filters::query::query())
+            .with(warp::wrap_fn(validate_client))
+            .untuple_one()
             .and_then(|provider: Arc<OAuth2Provider>, req| async move {
                 let result = provider.authorization_request(req).await;
                 reply(result)
