@@ -162,6 +162,8 @@ pub struct AccessTokenResponse {
 }
 
 #[derive(Debug, Clone)]
+#[derive(serde::Serialize)]
+#[serde(rename_all = "snake_case")]
 pub enum BadRequest {
     BadRedirect,
     BadChallenge,

@@ -52,8 +52,8 @@ pub async fn handle_reject(err: Rejection) -> Result<impl Reply, Rejection> {
                             .into_response(),
                     )
                 }
-                AuthRejection::BadRequest(_) => Ok(warp::reply::with_status(
-                    warp::reply(),
+                AuthRejection::BadRequest(b) => Ok(warp::reply::with_status(
+                    warp::reply::json(&b),
                     warp::http::StatusCode::BAD_REQUEST,
                 )
                 .into_response()),
