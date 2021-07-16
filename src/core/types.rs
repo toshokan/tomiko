@@ -118,6 +118,20 @@ impl AsRef<str> for HashedClientSecret {
 #[derive(serde::Deserialize, serde::Serialize)]
 #[serde(transparent)]
 pub struct AuthCode(pub String); // TODO
+impl AsRef<str> for AuthCode {
+    fn as_ref(&self) -> &str {
+	&self.0
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct HashedAuthCode(pub String);
+impl From<String> for HashedAuthCode {
+    fn from(from: String) -> Self {
+	Self(from)
+    }
+}
+
 
 #[derive(Debug, Clone)]
 #[derive(serde::Deserialize, serde::Serialize)]

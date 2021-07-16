@@ -126,9 +126,11 @@ impl OAuth2Provider {
         use TokenRequest::*;
         match req {
             AuthenticationCode(req) => {
+		let hashed_code = self.hasher.hash_without_salt(&req.code);
+		
                 let data = self
                     .store
-                    .get_authcode_data(&client.id, &req.code)
+                    .get_authcode_data(&client.id, &hashed_code)
                     .await
                     .map_err(|_| AccessTokenErrorKind::InvalidGrant)?;
 
@@ -237,8 +239,9 @@ impl OAuth2Provider {
 			let subject = info.subject.expect("Accepted challenge without subject");
 
                         let code = AuthCode::from_random();
+			let hashed_code = self.hasher.hash_without_salt(&code);
                         let data = AuthCodeData {
-                            code: code.clone(),
+                            code: hashed_code,
                             client_id: req.client_id.clone(),
                             req: req.clone(),
 			    subject: subject

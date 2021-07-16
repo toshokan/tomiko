@@ -2,7 +2,7 @@
 
 use crate::auth::{ChallengeData, Store};
 use crate::core::models::{AuthCodeData, Client};
-use crate::core::types::{AuthCode, ChallengeId, ClientId, HashedClientSecret, RedirectUri, Scope};
+use crate::core::types::{AuthCode, ChallengeId, ClientId, HashedAuthCode, HashedClientSecret, RedirectUri, Scope};
 
 use sqlx::sqlite::SqlitePool;
 use std::time::SystemTime;
@@ -102,7 +102,7 @@ impl Store for DbStore {
     async fn get_authcode_data(
         &self,
         client_id: &ClientId,
-        code: &AuthCode,
+        code: &HashedAuthCode,
     ) -> Result<AuthCodeData, ()> {
         let result = sqlx::query!(
             "SELECT * FROM codes WHERE client_id = ? AND code = ?",
@@ -113,7 +113,7 @@ impl Store for DbStore {
         .await
         .map_err(|_| ())?
         .map(|r| AuthCodeData {
-            code: AuthCode(r.code),
+            code: HashedAuthCode(r.code),
 	    client_id: ClientId(r.client_id),
 	    req: serde_json::from_str(&r.req).expect("Bad db deserialize"),
 	    subject: r.subject

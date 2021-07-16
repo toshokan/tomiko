@@ -2,7 +2,7 @@ use async_trait::async_trait;
 use std::time::SystemTime;
 use crate::core::models::{AuthCodeData, Client};
 use crate::core::types::{
-    AuthCode, ChallengeId, ClientId, ClientSecret, HashedClientSecret, RedirectUri, Scope,
+    AuthCode, ChallengeId, ClientId, ClientSecret, HashedAuthCode, HashedClientSecret, RedirectUri, Scope,
 };
 
 pub mod pkce;
@@ -383,7 +383,7 @@ pub trait Store {
     async fn get_authcode_data(
         &self,
         client_id: &ClientId,
-        code: &AuthCode,
+        code: &HashedAuthCode,
     ) -> Result<AuthCodeData, ()>;
     async fn clean_up(&self) -> Result<(), ()>;
     async fn trim_client_scopes(&self, client_id: &ClientId, scope: &Scope) -> Result<Scope, ()>;

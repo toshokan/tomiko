@@ -1,4 +1,4 @@
-use crate::core::types::{ClientId, ClientSecret, HashedClientSecret};
+use crate::core::types::{AuthCode, ClientId, ClientSecret, HashedAuthCode, HashedClientSecret};
 
 #[derive(Debug)]
 pub struct HashedClientCredentials {
@@ -17,6 +17,10 @@ pub trait HashTo: AsRef<str> {
 
 impl HashTo for ClientSecret {
     type HashedType = HashedClientSecret;
+}
+
+impl HashTo for AuthCode {
+    type HashedType = HashedAuthCode;
 }
 
 impl HashingService {
@@ -51,5 +55,18 @@ impl HashingService {
             .with_hash(hashed.as_ref())
             .verify()
             .map_err(|_| ())
+    }
+
+    pub fn hash_without_salt<T, H>(&self, to_hash: &T) -> H
+    where
+	T: HashTo<HashedType = H>,
+	H: From<String>
+    {
+	use sha2::Digest;
+	
+	let to_hash = to_hash.as_ref();
+	let digest = sha2::Sha512::digest(to_hash.as_bytes());
+	let hash = base64::encode_config(digest, base64::URL_SAFE);
+	hash.into()
     }
 }
