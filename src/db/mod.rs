@@ -33,7 +33,7 @@ impl Store for DbStore {
             client_id.0,
             uri.0
         )
-        .fetch_optional(&self.pool)
+        .fetch_one(&self.pool)
         .await
             .map_err(|_| ())
             .map(|_| ());
