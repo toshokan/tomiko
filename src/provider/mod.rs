@@ -191,10 +191,9 @@ impl OAuth2Provider {
 
     pub fn validate_token_for_challenge(&self, token: BearerToken) -> Option<()> {
 	let claims = self.token.validate_token(&token.0).ok()?;
-	if let Some(scope) = claims.scope {
-	    scope.borrow_parts().iter().find(|s| s == &"tomiko::challenge:rw").map(|_| ())
-	} else {
-	    None
+	match claims.scope {
+	    Some(scope) if scope.contains("tomiko::challenge:rw") => Some(()),
+	    _ => None
 	}
     }
 

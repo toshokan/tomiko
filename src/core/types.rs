@@ -1,3 +1,5 @@
+use std::collections::HashSet;
+
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 #[derive(Debug)]
@@ -8,11 +10,12 @@ pub enum GrantType {
 }
 
 #[derive(Debug, Clone, Eq)]
-pub struct Scope(Vec<String>);
+pub struct Scope(HashSet<String>);
 
 impl Scope {
-    pub fn from_parts(parts: Vec<String>) -> Self {
-        Self(parts)
+    pub fn from_parts(mut parts: Vec<String>) -> Self {
+	let set = parts.drain(..).collect();
+        Self(set)
     }
 
     pub fn from_delimited_parts(parts: &str) -> Self {
@@ -21,11 +24,11 @@ impl Scope {
     }
 
     pub fn as_joined(&self) -> String {
-        self.0.join(" ")
+        self.0.iter().map(AsRef::as_ref).collect::<Vec<&str>>().join(" ")
     }
 
-    pub fn borrow_parts(&self) -> &[String] {
-	self.0.as_slice()
+    pub fn contains(&self, scope: &str) -> bool {
+	self.0.contains(scope)
     }
 
     pub fn as_parts(&self) -> Vec<String> {
@@ -58,7 +61,7 @@ impl Serialize for Scope {
     where
         S: Serializer,
     {
-        let joined = self.0.join(" ");
+        let joined = self.as_joined();
         serializer.serialize_str(&joined)
     }
 }
