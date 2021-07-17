@@ -295,7 +295,8 @@ pub struct ChallengeData {
     pub id: ChallengeId,
     pub req: AuthorizationRequest,
     pub ok: bool,
-    pub subject: Option<String>
+    pub subject: Option<String>,
+    pub scope: Option<Scope>
 }
 
 #[derive(Debug, Clone)]
@@ -325,7 +326,8 @@ impl From<ChallengeData> for ChallengeInfo {
 #[serde(rename_all = "snake_case")]
 pub enum UpdateChallengeDataRequest {
     Accept {
-	subject: String
+	subject: String,
+	scope: Scope
     },
     Reject,
 }

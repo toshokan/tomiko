@@ -100,7 +100,8 @@ impl OAuth2Provider {
             id: ChallengeId::from_random(),
             req: req.clone(),
             ok: false,
-	    subject: None
+	    subject: None,
+	    scope: Some(parts.scope.clone())
         };
 
         let id = self.store.store_challenge_data(info).await.map_err(|_| {
@@ -238,6 +239,10 @@ impl OAuth2Provider {
                         }
 
 			let subject = info.subject.expect("Accepted challenge without subject");
+			let scope = info.scope.expect("Accepted challenge without scope");
+
+			let mut req = req.clone();
+			req.scope = scope;
 
                         let code = AuthCode::from_random();
 			let hashed_code = self.hasher.hash_without_salt(&code);
@@ -269,8 +274,9 @@ impl OAuth2Provider {
                         }
 
 			let subject = info.subject.expect("Accepted challenge without subject");
+			let scope = info.scope.expect("Accepted challenge without scope");
 
-			let access_token = self.token.new_token(&req.client_id, &subject, &req.scope);
+			let access_token = self.token.new_token(&req.client_id, &subject, &scope);
 						
                         let token_type = TokenService::token_type();
 
@@ -289,8 +295,10 @@ impl OAuth2Provider {
                         }
 
 			let subject = info.subject.expect("Accepted challenge without subject");
+			let scope = info.scope.expect("Accepted challenge without scope");
+			
 
-			let access_token = self.token.new_token(&req.client_id, &subject, &req.scope);
+			let access_token = self.token.new_token(&req.client_id, &subject, &scope);
 			let id_token = self.token.new_id_token(&req.client_id, &subject, Some(&req.ext.oidc.nonce));
 			let oidc = Some(crate::oidc::AccessTokenResponse {
 			    id_token
@@ -328,8 +336,9 @@ impl OAuth2Provider {
             .await?
             .expect("No matching challenge");
         info.ok = match req {
-            UpdateChallengeDataRequest::Accept{subject} => {
+            UpdateChallengeDataRequest::Accept{subject, scope} => {
 		info.subject = Some(subject);
+		info.scope = Some(scope);
 		true
 	    }
             UpdateChallengeDataRequest::Reject => false
