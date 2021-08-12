@@ -1,10 +1,11 @@
 #![allow(clippy::toplevel_ref_arg)]
 
 use crate::auth::{ChallengeData, Store};
-use crate::core::models::{AuthCodeData, Client};
+use crate::core::models::{AuthCodeData, Client, Consent, PersistentSeed, PersistentSeedId, RefreshTokenId};
 use crate::core::types::{ChallengeId, ClientId, HashedAuthCode, HashedClientSecret, RedirectUri, Scope};
 
 use sqlx::sqlite::SqlitePool;
+use std::convert::TryInto;
 use std::time::SystemTime;
 
 #[derive(Debug)]
@@ -151,6 +152,18 @@ impl Store for DbStore {
             .execute(&self.pool)
             .await
             .map_err(|_| ())
+            .map(|_| ())?;
+
+	sqlx::query!("DELETE FROM refresh_tokens WHERE invalid_after <= ?", time)
+            .execute(&self.pool)
+            .await
+            .map_err(|_| ())
+            .map(|_| ())?;
+
+	sqlx::query!("DELETE FROM challenges WHERE invalid_after <= ?", time)
+            .execute(&self.pool)
+            .await
+            .map_err(|_| ())
             .map(|_| ())
     }
 
@@ -179,15 +192,25 @@ impl Store for DbStore {
         Ok(Scope::from_parts(parts))
     }
 
-    async fn store_challenge_data(&self, info: ChallengeData) -> Result<ChallengeId, ()> {
+    async fn store_challenge_data(&self, info: ChallengeData, expiry: SystemTime) -> Result<ChallengeId, ()> {
         let id = info.id.clone();
 	let req = serde_json::to_string(&info.req).expect("Bad db serialize");
+	let scope = info.scope.as_joined();
+
+	let invalid_after: i64 = expiry
+            .duration_since(SystemTime::UNIX_EPOCH)
+            .unwrap()
+            .as_secs()
+	    .try_into()
+	    .unwrap();
 
         sqlx::query!(
-            "INSERT INTO challenges(id, req, ok) VALUES (?,?,?)",
+            "INSERT INTO challenges(id, req, ok, scope, invalid_after) VALUES (?,?,?,?,?)",
             info.id.0,
 	    req,
-	    info.ok
+	    info.ok,
+	    scope,
+	    invalid_after
         )
         .execute(&self.pool)
         .await
@@ -209,7 +232,7 @@ impl Store for DbStore {
                     req: serde_json::from_str(&r.req).expect("Bad db deserialize"),
 		    ok: r.ok,
 		    subject: r.subject,
-		    scope: r.scope.map(|s| Scope::from_delimited_parts(&s))
+		    scope: Scope::from_delimited_parts(&r.scope)
                 })
             })
             .map_err(|_| ())?;
@@ -217,10 +240,21 @@ impl Store for DbStore {
         Ok(result)
     }
 
+    async fn delete_challenge_data(
+        &self,
+        id: &ChallengeId,
+    ) -> Result<(), ()> {
+        sqlx::query!("DELETE FROM challenges WHERE id = ?", id.0)
+            .execute(&self.pool)
+            .await
+            .map_err(|_| ())?;
+	Ok(())
+    }
+
     async fn update_challenge_data(&self, info: ChallengeData) -> Result<ChallengeData, ()> {
 	let id = &info.id;
 	let req = serde_json::to_string(&info.req).expect("Bad db serialize");
-	let scope = info.scope.as_ref().map(|s| s.as_joined());
+	let scope = info.scope.as_joined();
 	
 	let result = sqlx::query!(
 	    "UPDATE challenges SET req = ?, ok = ?, subject = ?, scope = ? WHERE id = ?",
@@ -238,5 +272,144 @@ impl Store for DbStore {
 	.map_err(|_| ())?;
 
 	Ok(result)
+    }
+}
+
+impl DbStore {
+    pub async fn store_persistent_seed(&self, seed: &PersistentSeed) -> Result<(), ()> {
+	let subject = seed.auth_data.subject.clone();
+	let auth_data = serde_json::to_string(&seed.auth_data).expect("Bad db serialize");
+	let seed_id = &seed.id;
+	let client_id = &seed.client_id;
+	
+	let _result = sqlx::query!(
+	    "INSERT INTO persistent_seeds(persistent_seed_id, subject, auth_data, client_id) VALUES(?, ?, ?, ?)",
+	    seed_id.0,
+	    subject,
+	    auth_data,
+	    client_id.0
+	)
+	    .execute(&self.pool)
+	    .await
+	    .map_err(|_| ())?;
+
+	Ok(())
+    }
+
+    pub async fn get_seed(&self, id: PersistentSeedId) -> Result<Option<PersistentSeed>, ()> {
+	sqlx::query!(
+	    "SELECT * FROM persistent_seeds WHERE persistent_seed_id = ?",
+	    id.0
+	).fetch_optional(&self.pool)
+	    .await
+	    .map(|r| {
+		r.map(|r| {
+		    PersistentSeed {
+			id: PersistentSeedId(r.persistent_seed_id),
+			client_id: ClientId(r.client_id),
+			auth_data: serde_json::from_str(&r.auth_data).expect("Bad db deserialize"),
+		    }
+		})
+	    }).map_err(|_| ())
+    }
+
+    pub async fn invalidate_seed(&self, id: PersistentSeedId) -> Option<()> {
+	let mut tx = self.pool.begin().await.ok()?;
+	sqlx::query!(
+	    "DELETE FROM persistent_seeds WHERE persistent_seed_id = ?",
+	    id.0
+	).execute(&mut tx).await.ok()?;
+	sqlx::query!(
+	    "DELETE FROM refresh_tokens WHERE persistent_seed_id = ?",
+	    id.0
+	).execute(&mut tx).await.ok()?;
+	tx.commit().await.ok()?;
+	Some(())
+    }
+
+    pub async fn invalidate_refresh_token(&self, id: RefreshTokenId) -> Option<()> {
+	sqlx::query!(
+	    "DELETE FROM refresh_tokens WHERE refresh_token_id = ?",
+	    id.0
+	)
+	    .execute(&self.pool)
+	    .await
+	    .ok()?;
+	
+	Some(())
+    }
+
+    pub async fn validate_refresh_token(&self, id: RefreshTokenId) -> Option<()> {
+	sqlx::query!(
+	    "SElECT * FROM refresh_tokens WHERE refresh_token_id = ?",
+	    id.0
+	).fetch_optional(&self.pool)
+	    .await
+	    .map(|_| ())
+	    .ok()
+    }
+
+    pub async fn get_all_consents(&self, subject: &str) -> Result<Vec<Consent>, ()> {
+	sqlx::query!(
+	    r#"SELECT client_id, group_concat(scope, ' ') AS "scope!: String" FROM consent_scopes WHERE subject = ?"#,
+	    subject
+	).fetch_all(&self.pool)
+	    .await
+	    .map(|mut r| {
+		r.drain(..)
+		    .filter(|r| r.client_id != "")
+		    .map(|r| {
+		    Consent {
+			client_id: ClientId(r.client_id),
+			subject: subject.to_string(),
+			scope: Scope::from_delimited_parts(&r.scope)
+		    }
+		}).collect()
+	    }).map_err(|_| ())
+    }
+
+    pub async fn get_consent(&self, client_id: &ClientId, subject: &str) -> Result<Consent, ()> {
+	let scope = sqlx::query!(
+	    "SELECT scope FROM consent_scopes WHERE client_id = ? AND subject = ?",
+	    client_id.0,
+	    subject
+	).fetch_all(&self.pool)
+	    .await
+	    .map(|mut r| {
+		let parts = r.drain(..).map(|r| r.scope).collect();
+		Scope::from_parts(parts)
+	    }).map_err(|_| ())?;
+	Ok(Consent {
+	    client_id: client_id.clone(),
+	    subject: subject.to_string(),
+	    scope
+	})
+    }
+
+    pub async fn put_consent(&self, consent: Consent) -> Result<(), ()> {
+	let mut tx = self.pool.begin().await.map_err(|_| ())?;
+	let parts = consent.scope.as_parts();
+	for part in parts {
+	    sqlx::query!(
+		"INSERT OR IGNORE INTO consent_scopes(client_id, subject, scope) VALUES(?, ?, ?)",
+		consent.client_id.0,
+		consent.subject,
+		part
+	    ).execute(&mut tx)
+		.await
+		.map_err(|_| ())?;
+	}
+	tx.commit().await.map_err(|_| ())
+    }
+
+    pub async fn delete_consent(&self, client_id: &ClientId, subject: &str) -> Result<(), ()> {
+	sqlx::query!(
+	    "DELETE FROM consent_scopes WHERE client_id = ? AND subject = ?",
+	    client_id.0,
+	    subject
+	).execute(&self.pool)
+	    .await
+	    .map(|_| ())
+	    .map_err(|_| ())
     }
 }

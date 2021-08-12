@@ -296,7 +296,7 @@ pub struct ChallengeData {
     pub req: AuthorizationRequest,
     pub ok: bool,
     pub subject: Option<String>,
-    pub scope: Option<Scope>
+    pub scope: Scope
 }
 
 #[derive(Debug, Clone)]
@@ -314,7 +314,7 @@ impl From<ChallengeData> for ChallengeInfo {
 	Self {
 	    id: data.id,
 	    client_id: parts.client_id.clone(),
-	    scope: parts.scope.clone(),
+	    scope: data.scope.clone(),
 	    ok: data.ok
 	}
     }
@@ -396,8 +396,9 @@ pub trait Store {
     ) -> Result<(), ()>;
     async fn clean_up(&self) -> Result<(), ()>;
     async fn trim_client_scopes(&self, client_id: &ClientId, scope: &Scope) -> Result<Scope, ()>;
-    async fn store_challenge_data(&self, info: ChallengeData) -> Result<ChallengeId, ()>;
+    async fn store_challenge_data(&self, info: ChallengeData, expiry: SystemTime) -> Result<ChallengeId, ()>;
     async fn get_challenge_data(&self, id: &ChallengeId) -> Result<Option<ChallengeData>, ()>;
+    async fn delete_challenge_data(&self, id: &ChallengeId) -> Result<(), ()>;
     async fn update_challenge_data(&self, info: ChallengeData) -> Result<ChallengeData, ()>;
 }
 

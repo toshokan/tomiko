@@ -1,4 +1,4 @@
-use crate::core::types::{AuthCode, ChallengeId};
+use crate::core::{models::{PersistentSeedId, RefreshTokenId}, types::{AuthCode, ChallengeId}};
 
 pub trait FromRandom {
     fn from_random() -> Self;
@@ -13,6 +13,18 @@ impl FromRandom for AuthCode {
 impl FromRandom for ChallengeId {
     fn from_random() -> Self {
         ChallengeId(random_string(64))
+    }
+}
+
+impl FromRandom for PersistentSeedId {
+    fn from_random() -> Self {
+	PersistentSeedId(random_string(96))
+    }
+}
+
+impl FromRandom for RefreshTokenId {
+    fn from_random() -> Self {
+	RefreshTokenId(random_string(128))
     }
 }
 

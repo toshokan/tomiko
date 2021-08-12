@@ -1,4 +1,4 @@
-use crate::auth::{ChallengeInfo, MaybeChallenge::{self, *}, pkce};
+use crate::{auth::{ChallengeInfo, MaybeChallenge::{self, *}, pkce}, core::models::{AuthorizationData, Consent, ConsentId, PersistentSeed, PersistentSeedId, RefreshClaims, RefreshTokenId}};
 use crate::core::models::Client;
 use crate::core::types::{BearerToken, ChallengeId, ClientId, RedirectUri, Scope};
 use crate::oidc::types::Nonce;
@@ -90,7 +90,8 @@ impl OAuth2Provider {
 	> {
 	let parts = req.as_parts();
         let state = parts.state.clone();
-
+	let effective_scope = Self::trim_privileged_scopes(parts.scope.clone());
+	
 	if parts.scope.has_openid() {
 	    // TODO
 	}
@@ -101,10 +102,14 @@ impl OAuth2Provider {
             req: req.clone(),
             ok: false,
 	    subject: None,
-	    scope: Some(parts.scope.clone())
+	    scope: effective_scope
         };
 
-        let id = self.store.store_challenge_data(info).await.map_err(|_| {
+	let expiry = std::time::SystemTime::now()
+            .checked_add(std::time::Duration::from_secs(5 * 60))
+            .unwrap();
+
+        let id = self.store.store_challenge_data(info, expiry).await.map_err(|_| {
             MaybeRedirect::Redirected(Redirect::new(
                 uri,
                 (AuthorizationError::server_error(), state.clone()).into(),
@@ -152,11 +157,29 @@ impl OAuth2Provider {
 			None
 		    };
 
+		    let refresh_token = if data.req.scope.has_refresh() {
+			let seed = PersistentSeed {
+			    id: PersistentSeedId::from_random(),
+			    client_id: client.id.clone(),
+			    auth_data: AuthorizationData {
+				subject: data.subject.clone(),
+				scope: data.req.scope.clone()
+			    }
+			};
+			self.store.store_persistent_seed(&seed).await
+			    .map_err(|_| AccessTokenErrorKind::InvalidRequest)?;
+
+			let token = self.token.new_refresh_token(&seed);
+			Some(token)
+		    } else {
+			None
+		    };
+
                     Ok(AccessTokenResponse {
                         access_token,
                         token_type,
-                        refresh_token: None,
-                        expires_in: None,
+                        refresh_token,
+                        expires_in: Some(15 * 60),
 			oidc
                     })
                 } else {
@@ -197,6 +220,14 @@ impl OAuth2Provider {
 	}
     }
 
+    pub fn validate_token_for_consent(&self, token: BearerToken) -> Option<()> {
+	let claims = self.token.validate_token(&token.0).ok()?;
+	match claims.scope {
+	    Some(scope) if scope.contains("tomiko::consent:rw") => Some(()),
+	    _ => None
+	}
+    }
+
     pub async fn get_challenge_info(&self, token: BearerToken, id: ChallengeId) -> Option<ChallengeInfo> {
 	self.validate_token_for_challenge(token)?;
 	self.store
@@ -221,12 +252,14 @@ impl OAuth2Provider {
     pub async fn get_challenge_result(
         &self,
         id: ChallengeId,
-    ) -> Result<Redirect<AuthorizationResponse>, Redirect<WithState<AuthorizationError>>> {
+    ) -> Result<Redirect<AuthorizationResponse>, MaybeRedirect<WithState<AuthorizationError>, BadRequest>> {
         let info = self
             .store
             .get_challenge_data(&id)
             .await
             .expect("Error getting challenge info");
+	//  Can only be called once.
+	self.store.delete_challenge_data(&id).await.expect("Error deleting challenge");
         if let Some(info) = info {
 	    let parts = info.req.as_parts();
             Self::with_redirect(parts.redirect_uri.clone(), move || async move {
@@ -238,10 +271,9 @@ impl OAuth2Provider {
                         }
 
 			let subject = info.subject.expect("Accepted challenge without subject");
-			let scope = info.scope.expect("Accepted challenge without scope");
-
+			
 			let mut req = req.clone();
-			req.scope = scope;
+			req.scope = info.scope;
 
                         let code = AuthCode::from_random();
 			let hashed_code = self.hasher.hash_without_salt(&code);
@@ -273,10 +305,9 @@ impl OAuth2Provider {
                         }
 
 			let subject = info.subject.expect("Accepted challenge without subject");
-			let scope = info.scope.expect("Accepted challenge without scope");
 
-			let access_token = self.token.new_token(&req.client_id, &subject, &scope);
-						
+			let access_token = self.token.new_token(&req.client_id, &subject, &info.scope);
+			
                         let token_type = TokenService::token_type();
 
                         Ok(AuthorizationResponse::Implicit(AccessTokenResponse {
@@ -294,10 +325,8 @@ impl OAuth2Provider {
                         }
 
 			let subject = info.subject.expect("Accepted challenge without subject");
-			let scope = info.scope.expect("Accepted challenge without scope");
-			
 
-			let access_token = self.token.new_token(&req.client_id, &subject, &scope);
+			let access_token = self.token.new_token(&req.client_id, &subject, &info.scope);
 			let id_token = self.token.new_id_token(&req.client_id, &subject, Some(&req.ext.oidc.nonce));
 			let oidc = Some(crate::oidc::AccessTokenResponse {
 			    id_token
@@ -315,10 +344,47 @@ impl OAuth2Provider {
                     }
                 }
             })
-            .await
+		.await
+		.map_err(|r| MaybeRedirect::Redirected(r))
         } else {
-            unimplemented!()
+	    Err(MaybeRedirect::Direct(BadRequest::BadChallenge))
         }
+    }
+
+    pub async fn get_consent(
+	&self,
+	token: BearerToken,
+	id: ConsentId
+    ) -> Result<Consent, ()> {
+	self.validate_token_for_consent(token).ok_or_else(|| ())?;
+	self.store.get_consent(&id.client_id, &id.subject).await
+    }
+
+    pub async fn get_all_consents(
+	&self,
+	token: BearerToken,
+	subject: String
+    ) -> Result<Vec<Consent>, ()> {
+	self.validate_token_for_consent(token).ok_or_else(|| ())?;
+	self.store.get_all_consents(&subject).await
+    }
+
+    pub async fn put_consent(
+	&self,
+	token: BearerToken,
+	consent:  Consent
+    ) -> Result<(), ()> {
+	self.validate_token_for_consent(token).ok_or_else(|| ())?;
+	self.store.put_consent(consent).await
+    }
+
+    pub async fn revoke_consent(
+	&self,
+	token: BearerToken,
+	id:  ConsentId,
+    ) -> Result<(), ()> {
+	self.validate_token_for_consent(token).ok_or_else(|| ())?;
+	self.store.delete_consent(&id.client_id, &id.subject).await
     }
 
     pub async fn update_challenge_data_request(
@@ -337,7 +403,7 @@ impl OAuth2Provider {
         info.ok = match req {
             UpdateChallengeDataRequest::Accept{subject, scope} => {
 		info.subject = Some(subject);
-		info.scope = Some(scope);
+		info.scope = scope;
 		true
 	    }
             UpdateChallengeDataRequest::Reject => false
@@ -346,6 +412,11 @@ impl OAuth2Provider {
         Ok(UpdateChallengeDataResponse {
             redirect_to: format!("http://localhost:8001/challenge/v1/continue/{}", id.0),
         })
+    }
+
+    fn trim_privileged_scopes(s: Scope) -> Scope {
+	let parts = s.as_parts().drain(..).filter(|s| !s.starts_with("tomiko::")).collect();
+	Scope::from_parts(parts)
     }
 }
 
@@ -410,10 +481,8 @@ impl TokenService {
     }
 
     pub fn new_token(&self, client_id: &ClientId, subject: &str, scope: &Scope) -> String {
-        use jsonwebtoken::{encode, Algorithm, Header};
-
         let time_now = Self::current_timestamp().as_secs();
-        let expiry = time_now + 3600;
+        let expiry = time_now + (15 * 60);
 
 	let claims = AccessClaims {
 	    iss: "tomiko".to_string(),
@@ -426,7 +495,12 @@ impl TokenService {
 	    scope: Some(scope.clone())
 	};
 
-        let header = Header {
+	self.make_token(claims)
+    }
+
+    pub fn make_token(&self, claims: impl serde::Serialize) -> String {
+	use jsonwebtoken::{encode, Algorithm, Header};
+	let header = Header {
             alg: Algorithm::ES256,
             ..Default::default()
         };
@@ -435,8 +509,6 @@ impl TokenService {
     }
 
     pub fn new_id_token(&self, client_id: &ClientId, subject: &str, nonce: Option<&Nonce>) -> String {
-	use jsonwebtoken::{encode, Algorithm, Header};
-
         let time_now = Self::current_timestamp().as_secs();
         let expiry = time_now + 3600;
 
@@ -451,12 +523,20 @@ impl TokenService {
 	    azp: client_id.0.to_string(),
         };
 
-        let header = Header {
-            alg: Algorithm::ES256,
-            ..Default::default()
-        };
+	self.make_token(claims)
+    }
 
-        encode(&header, &claims, &self.secret).expect("Failed to encode token claims")
+    pub fn new_refresh_token(&self, seed: &PersistentSeed) -> String {
+	let time_now = Self::current_timestamp().as_secs();
+        let expiry = time_now + (24 * 60 * 60);
+
+	let claims = RefreshClaims {
+	    tps: seed.id.clone(),
+	    jti: RefreshTokenId::from_random(),
+	    iat: expiry
+	};
+
+	self.make_token(claims)
     }
 }
 

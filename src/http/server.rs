@@ -1,4 +1,5 @@
 use crate::auth::{ClientCredentials, UpdateChallengeDataRequest};
+use crate::core::models::{Consent, ConsentId};
 use crate::core::types::{BearerToken, ChallengeId};
 
 use std::sync::Arc;
@@ -79,6 +80,7 @@ impl Server {
 
         let oauth = warp::path("oauth");
 	let challenge = warp::path("challenge");
+	let consent = warp::path("consent");
         let with_provider = warp::any().map(move || provider.clone());
 
 	// Either a redirect success, a redirect error, or a direct error
@@ -137,6 +139,57 @@ impl Server {
 		reply(result)
 	    });
 
+	let consent_get = warp::path!("consent")
+            .and(warp::get())
+	    .and(warp::query())
+            .and(with_provider.clone())
+            .and(bearer())
+            .and_then(|id: ConsentId, provider: Arc<OAuth2Provider>, token| async move {
+                provider
+                    .get_consent(token, id)
+                    .await
+                    .map(|i| warp::reply::json(&i))
+                    .map_err(|_| warp::reject()) // TODO
+            });
+
+	let consent_get_all = warp::path!("consent" / String)
+            .and(warp::get())
+            .and(with_provider.clone())
+            .and(bearer())
+            .and_then(|subject: String, provider: Arc<OAuth2Provider>, token| async move {
+                provider
+                    .get_all_consents(token, subject)
+                    .await
+                    .map(|i| warp::reply::json(&i))
+                    .map_err(|_| warp::reject()) // TODO
+            });
+
+	let consent_set = warp::path!("consent")
+            .and(warp::post())
+	    .and(warp::body::json())
+            .and(with_provider.clone())
+            .and(bearer())
+            .and_then(|consent: Consent, provider: Arc<OAuth2Provider>, token| async move {
+                provider
+                    .put_consent(token, consent)
+                    .await
+                    .map(|i| warp::reply::json(&i))
+                    .map_err(|_| warp::reject()) // TODO
+            });
+
+	let consent_delete = warp::path!("revoke")
+            .and(warp::get())
+	    .and(warp::query())
+            .and(with_provider.clone())
+            .and(bearer())
+            .and_then(|id: ConsentId, provider: Arc<OAuth2Provider>, token| async move {
+                provider
+                    .revoke_consent(token, id)
+                    .await
+                    .map(|i| warp::reply::json(&i))
+                    .map_err(|_| warp::reject()) // TODO
+            });
+
 	let cors = warp::cors()
 	    .allow_any_origin();
 
@@ -155,6 +208,16 @@ impl Server {
 			challenge_data
 			    .or(challenge_update)
 			    .or(challenge_continue)
+		    )
+	    )
+	    .or(
+		consent
+		    .and(warp::path("v1"))
+		    .and(
+			consent_get
+			    .or(consent_get_all)
+			    .or(consent_set)
+			    .or(consent_delete)
 		    )
 	    )
             .recover(handle_reject)
