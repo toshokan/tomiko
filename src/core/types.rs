@@ -1,4 +1,4 @@
-use std::collections::HashSet;
+use std::{collections::HashSet, time::{Duration, SystemTime}};
 
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
@@ -33,6 +33,10 @@ impl Scope {
 
     pub fn as_parts(&self) -> Vec<String> {
         self.0.iter().cloned().collect()
+    }
+
+    pub fn trim_privileged(&mut self) {
+	self.0 = self.0.drain().filter(|s| !s.starts_with("tomiko::")).collect()
     }
 }
 
@@ -150,3 +154,29 @@ impl std::str::FromStr for ChallengeId {
 
 #[derive(Debug)]
 pub struct BearerToken(pub String);
+
+pub struct Expiry(SystemTime);
+
+impl Into<i64> for Expiry {
+    fn into(self) -> i64 {
+	use std::convert::TryInto;
+	
+	self.0
+            .duration_since(SystemTime::UNIX_EPOCH)
+            .unwrap_or(Duration::from_secs(0))
+            .as_secs()
+            .try_into()
+            .unwrap_or(0)
+    }
+}
+
+pub trait Expire {
+    const EXPIRES_IN_SECS: u64;
+
+    fn expiry() -> Expiry {
+	let time = SystemTime::now()
+	    .checked_add(Duration::from_secs(Self::EXPIRES_IN_SECS))
+	    .unwrap_or(SystemTime::now());
+	Expiry(time)
+    }
+}

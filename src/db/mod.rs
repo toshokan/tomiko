@@ -2,10 +2,10 @@
 
 use crate::auth::{ChallengeData, Store};
 use crate::core::models::{AuthCodeData, Client, Consent, PersistentSeed, PersistentSeedId, RefreshTokenId};
-use crate::core::types::{ChallengeId, ClientId, HashedAuthCode, HashedClientSecret, RedirectUri, Scope};
+use crate::core::types::{ChallengeId, ClientId, Expire, HashedAuthCode, HashedClientSecret, RedirectUri, Scope};
+use crate::provider::error::Error;
 
 use sqlx::sqlite::SqlitePool;
-use std::convert::TryInto;
 use std::time::SystemTime;
 
 #[derive(Debug)]
@@ -100,19 +100,20 @@ impl Store for DbStore {
         Ok(client)
     }
 
-    async fn get_authcode_data(
+    async fn take_authcode_data(
         &self,
         client_id: &ClientId,
         code: &HashedAuthCode,
-    ) -> Result<AuthCodeData, ()> {
+    ) -> Result<AuthCodeData, Error> {
+	let mut tx = self.pool.begin().await?;
+	
         let result = sqlx::query!(
             "SELECT * FROM codes WHERE client_id = ? AND code = ?",
             client_id.0,
             code.0
         )
-        .fetch_optional(&self.pool)
-        .await
-        .map_err(|_| ())?
+        .fetch_optional(&mut tx)
+        .await?
         .map(|r| AuthCodeData {
             code: HashedAuthCode(r.code),
 	    client_id: ClientId(r.client_id),
@@ -120,22 +121,16 @@ impl Store for DbStore {
 	    subject: r.subject
         });
 
-        result.ok_or(())
-    }
-
-    async fn delete_authcode_data(
-	&self,
-	client_id: &ClientId,
-	code: &HashedAuthCode
-    ) -> Result<(), ()> {
 	sqlx::query!(
 	    "DELETE FROM codes WHERE client_id = ? AND code = ?",
 	    client_id.0,
 	    code.0
-	).execute(&self.pool)
-	    .await
-	    .map_err(|_| ())
-	    .map(|_| ())
+	).execute(&mut tx)
+	    .await?;
+
+	tx.commit().await?;
+
+	result.ok_or(Error::BadRequest)
     }
 
     async fn clean_up(&self) -> Result<(), ()> {
@@ -192,17 +187,12 @@ impl Store for DbStore {
         Ok(Scope::from_parts(parts))
     }
 
-    async fn store_challenge_data(&self, info: ChallengeData, expiry: SystemTime) -> Result<ChallengeId, ()> {
+    async fn store_challenge_data(&self, info: ChallengeData) -> Result<ChallengeId, ()> {
         let id = info.id.clone();
 	let req = serde_json::to_string(&info.req).expect("Bad db serialize");
 	let scope = info.scope.as_joined();
 
-	let invalid_after: i64 = expiry
-            .duration_since(SystemTime::UNIX_EPOCH)
-            .unwrap()
-            .as_secs()
-	    .try_into()
-	    .unwrap();
+	let invalid_after: i64 = ChallengeData::expiry().into();
 
         sqlx::query!(
             "INSERT INTO challenges(id, req, ok, scope, invalid_after) VALUES (?,?,?,?,?)",

@@ -13,10 +13,13 @@ use crate::{
     core::{models::AuthCodeData, types::AuthCode},
 };
 
+pub mod error;
+
 use crate::db::DbStore;
 use crate::http::server::Server;
 use jsonwebtoken::{DecodingKey, EncodingKey};
 use std::sync::Arc;
+use self::error::ResultExt;
 
 #[derive(Debug)]
 pub struct OAuth2Provider {
@@ -89,34 +92,16 @@ impl OAuth2Provider {
         MaybeRedirect<WithState<AuthorizationError>, BadRequest>,
 	> {
 	let parts = req.as_parts();
-        let state = parts.state.clone();
-	let effective_scope = Self::trim_privileged_scopes(parts.scope.clone());
-	
-	if parts.scope.has_openid() {
-	    // TODO
-	}
-
         let uri = parts.redirect_uri.clone();
-        let info = ChallengeData {
-            id: ChallengeId::from_random(),
-            req: req.clone(),
-            ok: false,
-	    subject: None,
-	    scope: effective_scope
-        };
+	
+	let info = ChallengeData::new(&req);
+	let challenge = info.challenge();
 
-	let expiry = std::time::SystemTime::now()
-            .checked_add(std::time::Duration::from_secs(5 * 60))
-            .unwrap();
-
-        let id = self.store.store_challenge_data(info, expiry).await.map_err(|_| {
-            MaybeRedirect::Redirected(Redirect::new(
-                uri,
-                (AuthorizationError::server_error(), state.clone()).into(),
-            ))
-        })?;
-
-        let challenge = crate::auth::Challenge { id };
+	self.store.store_challenge_data(info)
+	    .await
+	    .map_err(|_| AuthorizationError::server_error())
+	    .add_state_context(&parts.state)
+	    .add_redirect_context(uri)?;
 
         Ok(Challenge(challenge))
     }
@@ -128,18 +113,16 @@ impl OAuth2Provider {
     ) -> Result<AccessTokenResponse, AccessTokenError> {
         let client = self.check_client_authentication(&credentials).await?;
         use TokenRequest::*;
+	
         match req {
             AuthenticationCode(req) => {
 		let hashed_code = self.hasher.hash_without_salt(&req.code);
 		
                 let data = self
                     .store
-                    .get_authcode_data(&client.id, &hashed_code)
+                    .take_authcode_data(&client.id, &hashed_code)
                     .await
                     .map_err(|_| AccessTokenErrorKind::InvalidGrant)?;
-
-		self.store.delete_authcode_data(&client.id, &hashed_code).await
-		    .map_err(|_| AccessTokenErrorKind::InvalidRequest)?;
 
 		if let Some(challenge) = data.req.ext.pkce_challenge {
 		    pkce::verify(&challenge, req.pkce_verifier.as_ref())?;
@@ -190,12 +173,12 @@ impl OAuth2Provider {
                 let scope = self
                     .store
                     .trim_client_scopes(&client.id, &req.scope)
-                    .await
-                    .expect("Trim scopes issue");
+                    .await;
 
-		if scope != req.scope {
-		    return Err(AccessTokenErrorKind::InvalidGrant.into());
-		}
+		let scope = match scope {
+		    Ok(scope) if scope == req.scope => scope,
+		    _ => return Err(AccessTokenErrorKind::InvalidGrant.into())
+		};
 
                 let access_token = self.token.new_token(&client.id, &client.id.0.to_string(), &scope);
                 let token_type = TokenService::token_type();
@@ -237,18 +220,6 @@ impl OAuth2Provider {
 	    .map(Into::into)
     }
 
-    pub async fn with_redirect<F, T, E>(
-        uri: RedirectUri,
-        f: impl FnOnce() -> F,
-    ) -> Result<Redirect<T>, Redirect<E>>
-    where
-        F: std::future::Future<Output = Result<T, E>>,
-    {
-        f().await
-            .map(|o| Redirect::new(uri.clone(), o))
-            .map_err(|e| Redirect::new(uri.clone(), e))
-    }
-
     pub async fn get_challenge_result(
         &self,
         id: ChallengeId,
@@ -262,92 +233,85 @@ impl OAuth2Provider {
 	self.store.delete_challenge_data(&id).await.expect("Error deleting challenge");
         if let Some(info) = info {
 	    let parts = info.req.as_parts();
-            Self::with_redirect(parts.redirect_uri.clone(), move || async move {
-                match info.req {
-                    AuthorizationRequest::AuthorizationCode(ref req) => {
-                        let state = req.state.clone();
-                        if !info.ok {
-                            Err((AuthorizationError::access_denied(), state.clone()))?;
-                        }
+	    let uri = parts.redirect_uri.clone();
+	    let state = parts.state.clone();
 
-			let subject = info.subject.expect("Accepted challenge without subject");
-			
-			let mut req = req.clone();
-			req.scope = info.scope;
+	    if !info.ok {
+                Err(AuthorizationError::access_denied())
+		    .add_state_context(&state)
+		    .add_redirect_context(uri.clone())?;
+            }
+	    
+	    match info.req {
+                AuthorizationRequest::AuthorizationCode(ref req) => {
+		    let subject = info.subject.expect("Accepted challenge without subject");
+		    
+		    let mut req = req.clone();
+		    req.scope = info.scope;
 
-                        let code = AuthCode::from_random();
-			let hashed_code = self.hasher.hash_without_salt(&code);
-                        let data = AuthCodeData {
-                            code: hashed_code,
-                            client_id: req.client_id.clone(),
-                            req: req.clone(),
-			    subject: subject
-                        };
+                    let code = AuthCode::from_random();
+		    let hashed_code = self.hasher.hash_without_salt(&code);
+                    let data = AuthCodeData {
+                        code: hashed_code,
+                        client_id: req.client_id.clone(),
+                        req: req.clone(),
+			subject
+                    };
 
-                        let expiry = std::time::SystemTime::now()
-                            .checked_add(std::time::Duration::from_secs(10 * 60))
-                            .unwrap();
+                    let expiry = std::time::SystemTime::now()
+                        .checked_add(std::time::Duration::from_secs(10 * 60))
+                        .unwrap();
 
-                        // Store code
-                        self.store
-                            .store_code(data, expiry)
-                            .await
-                            .map_err(|_| (AuthorizationError::server_error(), state.clone()))?;
+                    // Store code
+                    self.store
+                        .store_code(data, expiry)
+                        .await
+                        .map_err(|_| AuthorizationError::server_error())
+			.add_state_context(&state)
+			.add_redirect_context(uri.clone())?;
 
-                        Ok(AuthorizationResponse::AuthenticationCode(
-                            AuthenticationCodeResponse::new(code, state),
-                        ))
-                    }
-                    AuthorizationRequest::Implicit(req) => { // TODO: unify logic with ImplicitId below
-			let state = req.state.clone();
-                        if !info.ok {
-                            Err((AuthorizationError::access_denied(), state.clone()))?;
-                        }
-
-			let subject = info.subject.expect("Accepted challenge without subject");
-
-			let access_token = self.token.new_token(&req.client_id, &subject, &info.scope);
-			
-                        let token_type = TokenService::token_type();
-
-                        Ok(AuthorizationResponse::Implicit(AccessTokenResponse {
-                            access_token,
-                            token_type,
-                            refresh_token: None,
-                            expires_in: None,
-			    oidc: None
-                        }))
-		    },
-		    AuthorizationRequest::ImplicitId(req) => {
-			let state = req.state.clone();
-                        if !info.ok {
-                            Err((AuthorizationError::access_denied(), state.clone()))?;
-                        }
-
-			let subject = info.subject.expect("Accepted challenge without subject");
-
-			let access_token = self.token.new_token(&req.client_id, &subject, &info.scope);
-			let id_token = self.token.new_id_token(&req.client_id, &subject, Some(&req.ext.oidc.nonce));
-			let oidc = Some(crate::oidc::AccessTokenResponse {
-			    id_token
-			});
-			
-                        let token_type = TokenService::token_type();
-
-                        Ok(AuthorizationResponse::Implicit(AccessTokenResponse {
-                            access_token,
-                            token_type,
-                            refresh_token: None,
-                            expires_in: None,
-			    oidc
-                        }))
-                    }
+                    Ok(AuthorizationResponse::AuthenticationCode(
+                        AuthenticationCodeResponse::new(code, state),
+                    )).redirect_ok(uri.clone())
                 }
-            })
-		.await
-		.map_err(|r| MaybeRedirect::Redirected(r))
+                AuthorizationRequest::Implicit(req) => { // TODO: unify logic with ImplicitId below
+		    let subject = info.subject.expect("Accepted challenge without subject");
+
+		    let access_token = self.token.new_token(&req.client_id, &subject, &info.scope);
+		    
+                    let token_type = TokenService::token_type();
+
+                    Ok(AuthorizationResponse::Implicit(AccessTokenResponse {
+                        access_token,
+                        token_type,
+                        refresh_token: None,
+                        expires_in: None,
+			oidc: None
+                    })).redirect_ok(uri.clone())
+		},
+		AuthorizationRequest::ImplicitId(req) => {
+		    let subject = info.subject.expect("Accepted challenge without subject");
+
+		    let access_token = self.token.new_token(&req.client_id, &subject, &info.scope);
+		    let id_token = self.token.new_id_token(&req.client_id, &subject, Some(&req.ext.oidc.nonce));
+		    let oidc = Some(crate::oidc::AccessTokenResponse {
+			id_token
+		    });
+		    
+                    let token_type = TokenService::token_type();
+
+                    Ok(AuthorizationResponse::Implicit(AccessTokenResponse {
+                        access_token,
+                        token_type,
+                        refresh_token: None,
+                        expires_in: None,
+			oidc
+                    })).redirect_ok(uri.clone())
+                }
+            }
         } else {
-	    Err(MaybeRedirect::Direct(BadRequest::BadChallenge))
+	    Err(BadRequest::BadChallenge)
+		.without_redirect()
         }
     }
 
@@ -412,11 +376,6 @@ impl OAuth2Provider {
         Ok(UpdateChallengeDataResponse {
             redirect_to: format!("http://localhost:8001/challenge/v1/continue/{}", id.0),
         })
-    }
-
-    fn trim_privileged_scopes(s: Scope) -> Scope {
-	let parts = s.as_parts().drain(..).filter(|s| !s.starts_with("tomiko::")).collect();
-	Scope::from_parts(parts)
     }
 }
 

@@ -2,11 +2,13 @@ use async_trait::async_trait;
 use std::time::SystemTime;
 use crate::core::models::{AuthCodeData, Client};
 use crate::core::types::{
-    AuthCode, ChallengeId, ClientId, ClientSecret, HashedAuthCode, HashedClientSecret, RedirectUri, Scope,
+    AuthCode, ChallengeId, ClientId, ClientSecret, Expire, HashedAuthCode, HashedClientSecret, RedirectUri, Scope,
 };
 
 pub mod pkce;
 use crate::oidc;
+use crate::provider::error::Error;
+use crate::util::random::FromRandom;
 
 #[derive(Debug, Clone)]
 #[derive(serde::Serialize, serde::Deserialize)]
@@ -299,6 +301,34 @@ pub struct ChallengeData {
     pub scope: Scope
 }
 
+impl Expire for ChallengeData {
+    const EXPIRES_IN_SECS: u64 = 5 * 60;
+}
+
+impl ChallengeData {
+    pub fn new(req: &AuthorizationRequest) -> Self {
+	let scope = {
+	    let parts = req.as_parts();
+	    let mut scope = parts.scope.clone();
+	    scope.trim_privileged();
+	    scope
+	};
+	Self {
+	    id: ChallengeId::from_random(),
+	    req: req.clone(),
+	    ok: false,
+	    subject: None,
+	    scope
+	}
+    }
+
+    pub fn challenge(&self) -> Challenge {
+	Challenge {
+	    id: self.id.clone()
+	}
+    }
+}
+
 #[derive(Debug, Clone)]
 #[derive(serde::Serialize)]
 pub struct ChallengeInfo {
@@ -384,19 +414,14 @@ pub trait Store {
         client_id: ClientId,
         secret: HashedClientSecret,
     ) -> Result<Client, ()>;
-    async fn get_authcode_data(
+    async fn take_authcode_data(
         &self,
         client_id: &ClientId,
         code: &HashedAuthCode,
-    ) -> Result<AuthCodeData, ()>;
-    async fn delete_authcode_data(
-        &self,
-        client_id: &ClientId,
-        code: &HashedAuthCode,
-    ) -> Result<(), ()>;
+    ) -> Result<AuthCodeData, Error>;
     async fn clean_up(&self) -> Result<(), ()>;
     async fn trim_client_scopes(&self, client_id: &ClientId, scope: &Scope) -> Result<Scope, ()>;
-    async fn store_challenge_data(&self, info: ChallengeData, expiry: SystemTime) -> Result<ChallengeId, ()>;
+    async fn store_challenge_data(&self, info: ChallengeData) -> Result<ChallengeId, ()>;
     async fn get_challenge_data(&self, id: &ChallengeId) -> Result<Option<ChallengeData>, ()>;
     async fn delete_challenge_data(&self, id: &ChallengeId) -> Result<(), ()>;
     async fn update_challenge_data(&self, info: ChallengeData) -> Result<ChallengeData, ()>;
