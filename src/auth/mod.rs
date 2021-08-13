@@ -1,5 +1,4 @@
 use async_trait::async_trait;
-use std::time::SystemTime;
 use crate::core::models::{AuthCodeData, Client};
 use crate::core::types::{
     AuthCode, ChallengeId, ClientId, ClientSecret, Expire, HashedAuthCode, HashedClientSecret, RedirectUri, Scope,
@@ -407,7 +406,7 @@ impl<T> Redirect<T> {
 #[async_trait]
 pub trait Store {
     async fn check_client_uri(&self, client_id: &ClientId, uri: &RedirectUri) -> Result<(), ()>;
-    async fn store_code(&self, data: AuthCodeData, expiry: SystemTime) -> Result<AuthCodeData, ()>;
+    async fn store_code(&self, data: AuthCodeData) -> Result<AuthCodeData, ()>;
     async fn get_client(&self, client_id: &ClientId) -> Result<Option<Client>, ()>;
     async fn put_client(
         &self,

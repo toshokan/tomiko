@@ -16,6 +16,10 @@ pub struct AuthCodeData {
     pub subject: String
 }
 
+impl Expire for AuthCodeData {
+    const EXPIRES_IN_SECS: u64 = 10 * 60;
+}
+
 #[derive(Debug)]
 pub struct RedirectRecord {
     pub client_id: ClientId,

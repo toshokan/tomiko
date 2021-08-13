@@ -6,7 +6,7 @@ use crate::core::types::{ChallengeId, ClientId, Expire, HashedAuthCode, HashedCl
 use crate::provider::error::Error;
 
 use sqlx::sqlite::SqlitePool;
-use std::time::SystemTime;
+
 
 #[derive(Debug)]
 pub struct DbStore {
@@ -41,15 +41,9 @@ impl Store for DbStore {
 	result
 
     }
-    async fn store_code(&self, data: AuthCodeData, expiry: SystemTime) -> Result<AuthCodeData, ()> {
-        use std::convert::TryInto;
-
-        let invalid_after: i64 = expiry
-            .duration_since(SystemTime::UNIX_EPOCH)
-            .unwrap()
-            .as_secs()
-            .try_into()
-            .unwrap();
+    async fn store_code(&self, data: AuthCodeData) -> Result<AuthCodeData, ()> {
+        let invalid_after: i64 = AuthCodeData::expiry().into();
+	
 	let req = serde_json::to_string(&data.req).expect("bad db serialize");
 
         sqlx::query!(
@@ -135,6 +129,7 @@ impl Store for DbStore {
 
     async fn clean_up(&self) -> Result<(), ()> {
         use std::convert::TryInto;
+	use std::time::SystemTime;
 
         let time: i64 = SystemTime::now()
             .duration_since(SystemTime::UNIX_EPOCH)

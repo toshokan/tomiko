@@ -258,13 +258,9 @@ impl OAuth2Provider {
 			subject
                     };
 
-                    let expiry = std::time::SystemTime::now()
-                        .checked_add(std::time::Duration::from_secs(10 * 60))
-                        .unwrap();
-
                     // Store code
                     self.store
-                        .store_code(data, expiry)
+                        .store_code(data)
                         .await
                         .map_err(|_| AuthorizationError::server_error())
 			.add_state_context(&state)
