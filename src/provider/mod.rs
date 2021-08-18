@@ -1,4 +1,4 @@
-use crate::{auth::{ChallengeInfo, MaybeChallenge::{self, *}, pkce}, core::models::{AuthorizationData, Consent, ConsentId, PersistentSeed, PersistentSeedId, RefreshClaims, RefreshTokenId}};
+use crate::{auth::{ChallengeInfo, MaybeChallenge::{self, *}, pkce}, core::{models::{AuthorizationData, Consent, ConsentId, PersistentSeed, PersistentSeedId, RefreshClaims, RefreshTokenId}, types::TokenId}};
 use crate::core::models::Client;
 use crate::core::types::{BearerToken, ChallengeId, ClientId, RedirectUri, Scope};
 use crate::oidc::types::Nonce;
@@ -32,14 +32,13 @@ impl OAuth2Provider {
     pub async fn validate_client(
         &self,
         client_id: &ClientId,
-        redirect_uri: &RedirectUri,
-        _state: &Option<String>,
-    ) -> Result<(), MaybeRedirect<WithState<AuthorizationError>, BadRequest>> {
+        redirect_uri: &RedirectUri
+    ) -> Result<(), BadRequest> {
         self.store
             .check_client_uri(client_id, redirect_uri)
             .await
             .map_err(|_| {
-                MaybeRedirect::Direct(BadRequest::BadRedirect)
+                BadRequest::BadRedirect
             })?;
 
         Ok(())
@@ -54,9 +53,9 @@ impl OAuth2Provider {
         if let Ok(Some(c)) = client {
             let result = self
                 .hasher
-                .verify(&cred.client_secret, &c.secret)
-                .expect("Failed to hash");
-            if result {
+                .verify(&cred.client_secret, &c.secret);
+	    
+            if let Ok(true) = result {
                 return Ok(c);
             }
         }
@@ -133,8 +132,9 @@ impl OAuth2Provider {
                     let token_type = TokenService::token_type();
 
 		    let oidc = if data.req.scope.has_openid() || data.req.ext.oidc.is_some() {
+			let nonce = data.req.ext.oidc.map(|o| o.nonce).flatten();
 			Some(crate::oidc::AccessTokenResponse {
-			    id_token: self.token.new_id_token(&client.id, &data.subject, None) // TODO: grab nonce
+			    id_token: self.token.new_id_token(&client.id, &data.subject, nonce.as_ref())
 			})
 		    } else {
 			None
@@ -191,7 +191,6 @@ impl OAuth2Provider {
 		    oidc: None
                 })
             }
-            _ => unimplemented!(),
         }
     }
 
@@ -228,9 +227,15 @@ impl OAuth2Provider {
             .store
             .get_challenge_data(&id)
             .await
-            .expect("Error getting challenge info");
+	    .map_err(|_| BadRequest::BadChallenge)
+	    .without_redirect()?;
+
 	//  Can only be called once.
-	self.store.delete_challenge_data(&id).await.expect("Error deleting challenge");
+	self.store.delete_challenge_data(&id)
+	    .await
+	    .map_err(|_| BadRequest::ServerError)
+	    .without_redirect()?;
+	
         if let Some(info) = info {
 	    let parts = info.req.as_parts();
 	    let uri = parts.redirect_uri.clone();
@@ -446,7 +451,7 @@ impl TokenService {
 	    sub: subject.to_string(),
 	    client_id: client_id.0.to_string(),
 	    iat: time_now,
-	    jti: "<not_implemented>".to_string(),
+	    jti: TokenId::from_random(),
 	    scope: Some(scope.clone())
 	};
 
@@ -532,7 +537,7 @@ struct AccessClaims {
     sub: String,
     client_id: String,
     iat: u64,
-    jti: String,
+    jti: TokenId,
     #[serde(skip_serializing_if="Option::is_none")]
     scope: Option<Scope>,
 }
