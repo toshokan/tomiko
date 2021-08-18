@@ -39,7 +39,8 @@ impl HashingService {
             .with_password(s)
             .with_secret_key(&self.secret_key)
             .hash()
-            .expect("Failed to hash"); // TODO
+	    .map_err(|_| ())?;
+	
 	Ok(hash.into())
     }
 

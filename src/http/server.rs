@@ -5,6 +5,7 @@ use crate::core::types::{BearerToken, ChallengeId};
 use std::sync::Arc;
 use warp::{Filter, Rejection};
 
+use super::encoding::error::AuthRejection;
 use super::encoding::{error::handle_reject, reply::accept, reply::json_encode, reply::reply, WithCredentials};
 use http_basic_auth::Credential as BasicCredentials;
 
@@ -21,14 +22,10 @@ where
 {
     filter.and_then(|p: Arc<OAuth2Provider>, t: T| async move {
 	let (c, r) = t.peek();
-	if p.validate_client(&c, &r, &None).await.is_err() {
-	    Err(warp::reject::custom(
-		super::encoding::error::AuthRejection::BadRequest(crate::auth::BadRequest::BadRedirect)
-	    ))
-	} else {
-	    Ok((p, t))
+	match p.validate_client(&c, &r).await {
+	    Ok(_) => Ok((p, t)),
+	    Err(e) => Err(warp::reject::custom(AuthRejection::BadRequest(e)))
 	}
-	
     })
 }
 

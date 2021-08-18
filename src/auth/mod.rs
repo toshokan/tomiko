@@ -95,14 +95,6 @@ pub struct AuthenticationCodeTokenRequest {
 
 #[derive(Debug)]
 #[derive(serde::Deserialize)]
-pub struct ResourceOwnerPasswordCredentialsTokenRequest {
-    username: String,
-    password: String,
-    scope: Scope,
-}
-
-#[derive(Debug)]
-#[derive(serde::Deserialize)]
 pub struct ClientCredentialsTokenRequest {
     pub scope: Scope,
 }
@@ -113,8 +105,6 @@ pub struct ClientCredentialsTokenRequest {
 pub enum TokenRequest {
     #[serde(rename = "authorization_code")]
     AuthenticationCode(AuthenticationCodeTokenRequest),
-    #[serde(rename = "password")]
-    ResourceOwnerPasswordCredentials(ResourceOwnerPasswordCredentialsTokenRequest),
     #[serde(rename = "client_credentials")]
     ClientCredentials(ClientCredentialsTokenRequest),
 }
@@ -168,7 +158,8 @@ pub struct AccessTokenResponse {
 pub enum BadRequest {
     BadRedirect,
     BadChallenge,
-    BadToken
+    BadToken,
+    ServerError,
 }
 
 #[derive(Debug)]

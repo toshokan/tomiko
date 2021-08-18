@@ -180,3 +180,8 @@ pub trait Expire {
 	Expiry(time)
     }
 }
+
+#[derive(Debug, Clone)]
+#[derive(serde::Deserialize, serde::Serialize)]
+#[serde(transparent)]
+pub struct TokenId(pub String);
