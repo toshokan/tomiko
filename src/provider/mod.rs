@@ -1,4 +1,4 @@
-use crate::{auth::{AuthorizationRequestData, ChallengeInfo, MaybeChallenge::{self, *}, pkce}, core::{models::{AuthorizationData, Consent, ConsentId, PersistentSeed, PersistentSeedId, RefreshClaims, RefreshTokenId}, types::TokenId}};
+use crate::{auth::{AuthorizationRequestData, Challenge, ChallengeInfo, MaybeChallenge::{self, *}, pkce}, core::{models::{AuthorizationData, Consent, ConsentId, PersistentSeed, PersistentSeedId, RefreshClaims, RefreshTokenId}, types::TokenId}};
 use crate::core::models::Client;
 use crate::core::types::{BearerToken, ChallengeId, ClientId, RedirectUri, Scope};
 use crate::oidc::types::Nonce;
@@ -26,6 +26,8 @@ pub struct OAuth2Provider {
     store: DbStore,
     hasher: HashingService,
     token: TokenService,
+    challenge_base: String,
+    self_base: String,
 }
 
 impl OAuth2Provider {
@@ -80,8 +82,6 @@ impl OAuth2Provider {
     }
 }
 
-// #[async_trait]
-// impl Provider for OAuth2Provider {
 impl OAuth2Provider {
     pub async fn authorization_request(
         &self,
@@ -94,7 +94,7 @@ impl OAuth2Provider {
         let uri = parts.redirect_uri.clone();
 	
 	let info = ChallengeData::new(&req);
-	let challenge = info.challenge();
+	let challenge = self.make_challenge(&info.id);
 
 	self.store.store_challenge_data(info)
 	    .await
@@ -298,7 +298,6 @@ impl OAuth2Provider {
                         expires_in: None,
 			oidc
                     })).redirect_ok(uri.clone())
-		    
 		}
             }
         } else {
@@ -366,8 +365,16 @@ impl OAuth2Provider {
         };
         self.store.update_challenge_data(info).await?;
         Ok(UpdateChallengeDataResponse {
-            redirect_to: format!("http://localhost:8001/challenge/v1/continue/{}", id.0),
+            redirect_to: format!("{}/challenge/v1/continue/{}", &self.self_base, id.0),
         })
+    }
+
+    fn make_challenge(&self, id: &ChallengeId) -> Challenge {
+	let id = id.clone();
+	Challenge {
+	    base_url: self.challenge_base.clone(),
+	    id
+	}
     }
 }
 
@@ -499,6 +506,8 @@ async fn tomikod(config: Config) -> Option<()> {
         store,
         hasher,
         token,
+	challenge_base: config.challenge_base,
+	self_base: config.self_base
     });
 
     let _clean_up = {
@@ -517,6 +526,8 @@ pub struct Config {
     hash_secret: String,
     jwt_private_key_file: String,
     jwt_public_key_file: String,
+    challenge_base: String,
+    self_base: String
 }
 
 #[derive(Debug)]
@@ -555,6 +566,10 @@ impl Config {
                 .expect("Supply JWT_PRIVATE_KEY_FILE"),
 	    jwt_public_key_file: std::env::var("JWT_PUBLIC_KEY_FILE")
                 .expect("Supply JWT_PUBLIC_KEY_FILE"),
+	    challenge_base: std::env::var("CHALLENGE_HTTP_BASE")
+                .expect("Supply CHALLENGE_HTTP_BASE"),
+	    self_base: std::env::var("SELF_HTTP_BASE")
+                .expect("Supply SELF_HTTP_BASE"),
         }
     }
 }

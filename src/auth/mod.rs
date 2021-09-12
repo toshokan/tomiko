@@ -278,6 +278,7 @@ pub struct ClientCredentials {
 #[derive(Debug)]
 #[derive(serde::Serialize)]
 pub struct Challenge {
+    pub base_url: String,
     pub id: ChallengeId,
 }
 
@@ -309,12 +310,6 @@ impl ChallengeData {
 	    ok: false,
 	    subject: None,
 	    scope
-	}
-    }
-
-    pub fn challenge(&self) -> Challenge {
-	Challenge {
-	    id: self.id.clone()
 	}
     }
 }
