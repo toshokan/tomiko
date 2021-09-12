@@ -1,4 +1,4 @@
-use crate::{auth::{ChallengeInfo, MaybeChallenge::{self, *}, pkce}, core::{models::{AuthorizationData, Consent, ConsentId, PersistentSeed, PersistentSeedId, RefreshClaims, RefreshTokenId}, types::TokenId}};
+use crate::{auth::{AuthorizationRequestData, ChallengeInfo, MaybeChallenge::{self, *}, pkce}, core::{models::{AuthorizationData, Consent, ConsentId, PersistentSeed, PersistentSeedId, RefreshClaims, RefreshTokenId}, types::TokenId}};
 use crate::core::models::Client;
 use crate::core::types::{BearerToken, ChallengeId, ClientId, RedirectUri, Scope};
 use crate::oidc::types::Nonce;
@@ -275,29 +275,19 @@ impl OAuth2Provider {
                         AuthenticationCodeResponse::new(code, state),
                     )).redirect_ok(uri.clone())
                 }
-                AuthorizationRequest::Implicit(req) => { // TODO: unify logic with ImplicitId below
+		AuthorizationRequest::Implicit(AuthorizationRequestData{ ref client_id, .. }) |
+		AuthorizationRequest::ImplicitId(AuthorizationRequestData{ ref client_id, .. }) => {
 		    let subject = info.subject.expect("Accepted challenge without subject");
+		    let oidc = if let AuthorizationRequest::ImplicitId(req) = &info.req {
+			let id_token = self.token.new_id_token(&req.client_id, &subject, Some(&req.ext.oidc.nonce));
+			Some(crate::oidc::AccessTokenResponse {
+			    id_token
+			})
+		    } else {
+			None
+		    };
 
-		    let access_token = self.token.new_token(&req.client_id, &subject, &info.scope);
-		    
-                    let token_type = TokenService::token_type();
-
-                    Ok(AuthorizationResponse::Implicit(AccessTokenResponse {
-                        access_token,
-                        token_type,
-                        refresh_token: None,
-                        expires_in: None,
-			oidc: None
-                    })).redirect_ok(uri.clone())
-		},
-		AuthorizationRequest::ImplicitId(req) => {
-		    let subject = info.subject.expect("Accepted challenge without subject");
-
-		    let access_token = self.token.new_token(&req.client_id, &subject, &info.scope);
-		    let id_token = self.token.new_id_token(&req.client_id, &subject, Some(&req.ext.oidc.nonce));
-		    let oidc = Some(crate::oidc::AccessTokenResponse {
-			id_token
-		    });
+		    let access_token = self.token.new_token(client_id, &subject, &info.scope);
 		    
                     let token_type = TokenService::token_type();
 
@@ -308,7 +298,8 @@ impl OAuth2Provider {
                         expires_in: None,
 			oidc
                     })).redirect_ok(uri.clone())
-                }
+		    
+		}
             }
         } else {
 	    Err(BadRequest::BadChallenge)
