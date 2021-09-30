@@ -1,5 +1,5 @@
 use clap::Clap;
-use sqlx::sqlite::SqlitePool;
+use sqlx::postgres::PgPool;
 
 use tomiko::core::types::ClientSecret;
 use tomiko::util::hash::HashingService;
@@ -71,8 +71,8 @@ struct DeleteClientScope {
     scope: String,
 }
 
-async fn get_database(uri: &str) -> SqlitePool {
-    let pool = SqlitePool::connect(uri)
+async fn get_database(uri: &str) -> PgPool {
+    let pool = PgPool::connect(uri)
         .await
         .expect("Failed to connect to database");
     pool
@@ -93,7 +93,7 @@ async fn create_client(c: &CreateClient, opts: &Options) {
         .0;
 
     sqlx::query!(
-        "INSERT INTO clients(client_id, secret_hash) VALUES(?, ?)",
+        "INSERT INTO clients(client_id, secret_hash) VALUES($1, $2)",
         client_id,
         password
     )
@@ -107,7 +107,7 @@ async fn create_client(c: &CreateClient, opts: &Options) {
 async fn delete_client(c: &DeleteClient, opts: &Options) {
     let db = get_database(&opts.database_url).await;
 
-    sqlx::query!("DELETE FROM clients WHERE client_id = ?", c.id)
+    sqlx::query!("DELETE FROM clients WHERE client_id = $1", c.id)
         .execute(&db)
         .await
         .expect("Failed to delete client");
@@ -118,7 +118,7 @@ async fn delete_client(c: &DeleteClient, opts: &Options) {
 async fn add_client_uri(c: &AddClientUri, opts: &Options) {
     let db = get_database(&opts.database_url).await;
 
-    sqlx::query!("INSERT INTO uris(client_id, uri) VALUES(?, ?)", c.id, c.uri)
+    sqlx::query!("INSERT INTO uris(client_id, uri) VALUES($1, $2)", c.id, c.uri)
         .execute(&db)
         .await
         .expect("Failed to add url");
@@ -130,7 +130,7 @@ async fn delete_client_uri(c: &DeleteClientUri, opts: &Options) {
     let db = get_database(&opts.database_url).await;
 
     sqlx::query!(
-        "DELETE FROM uris WHERE client_id = ? AND uri = ?",
+        "DELETE FROM uris WHERE client_id = $1 AND uri = $2",
         c.id,
         c.uri
     )
@@ -148,7 +148,7 @@ async fn add_client_scope(c: &AddClientScope, opts: &Options) {
 
     for scope in scopes {
         sqlx::query!(
-            "INSERT INTO client_scopes(client_id, scope) VALUES(?, ?)",
+            "INSERT INTO client_scopes(client_id, scope) VALUES($1, $2)",
             c.id,
             scope
         )
@@ -167,7 +167,7 @@ async fn delete_client_scope(c: &DeleteClientScope, opts: &Options) {
 
     for scope in scopes {
         sqlx::query!(
-            "DELETE FROM client_scopes WHERE client_id = ? AND scope = ?",
+            "DELETE FROM client_scopes WHERE client_id = $1 AND scope = $2",
             c.id,
             scope
         )

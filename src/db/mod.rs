@@ -5,17 +5,17 @@ use crate::core::models::{AuthCodeData, Client, Consent, PersistentSeed, Persist
 use crate::core::types::{ChallengeId, ClientId, Expire, HashedAuthCode, HashedClientSecret, RedirectUri, Scope};
 use crate::provider::error::Error;
 
-use sqlx::sqlite::SqlitePool;
+use sqlx::postgres::PgPool;
 
 
 #[derive(Debug)]
 pub struct DbStore {
-    pool: SqlitePool,
+    pool: PgPool,
 }
 
 impl DbStore {
     pub async fn acquire(db_uri: &str) -> Result<Self, ()> {
-        let pool = SqlitePool::connect(db_uri)
+        let pool = PgPool::connect(db_uri)
             .await
             .map_err(|e| {
 		dbg!(e);
@@ -30,7 +30,7 @@ impl DbStore {
 impl Store for DbStore {
     async fn check_client_uri(&self, client_id: &ClientId, uri: &RedirectUri) -> Result<(), ()> {
         let result = sqlx::query!(
-            r#"SELECT * FROM uris WHERE client_id = ? AND uri = ?"#,
+            r#"SELECT * FROM uris WHERE client_id = $1 AND uri = $2"#,
             client_id.0,
             uri.0
         )
@@ -47,7 +47,7 @@ impl Store for DbStore {
 	let req = serde_json::to_string(&data.req).expect("bad db serialize");
 
         sqlx::query!(
-            "INSERT INTO codes(client_id, code, req, invalid_after, subject) VALUES(?, ?, ?, ?, ?)",
+            "INSERT INTO codes(client_id, code, req, invalid_after, subject) VALUES($1, $2, $3, $4, $5)",
             data.client_id.0,
             data.code.0,
 	    req,
@@ -62,7 +62,7 @@ impl Store for DbStore {
     }
 
     async fn get_client(&self, id: &ClientId) -> Result<Option<Client>, ()> {
-        let result = sqlx::query!("SELECT * from clients WHERE client_id = ?", id.0)
+        let result = sqlx::query!("SELECT * from clients WHERE client_id = $1", id.0)
             .fetch_optional(&self.pool)
             .await
             .map_err(|_| ())?
@@ -79,7 +79,7 @@ impl Store for DbStore {
         secret: HashedClientSecret,
     ) -> Result<Client, ()> {
         sqlx::query!(
-            "INSERT INTO clients(client_id, secret_hash) VALUES(?, ?)",
+            "INSERT INTO clients(client_id, secret_hash) VALUES($1, $2)",
             client_id.0,
             secret.0
         )
@@ -102,7 +102,7 @@ impl Store for DbStore {
 	let mut tx = self.pool.begin().await?;
 	
         let result = sqlx::query!(
-            "SELECT * FROM codes WHERE client_id = ? AND code = ?",
+            "SELECT * FROM codes WHERE client_id = $1 AND code = $2",
             client_id.0,
             code.0
         )
@@ -116,7 +116,7 @@ impl Store for DbStore {
         });
 
 	sqlx::query!(
-	    "DELETE FROM codes WHERE client_id = ? AND code = ?",
+	    "DELETE FROM codes WHERE client_id = $1 AND code = $2",
 	    client_id.0,
 	    code.0
 	).execute(&mut tx)
@@ -138,19 +138,19 @@ impl Store for DbStore {
             .try_into()
             .unwrap();
 
-        sqlx::query!("DELETE FROM codes WHERE invalid_after <= ?", time)
+        sqlx::query!("DELETE FROM codes WHERE invalid_after <= $1", time)
             .execute(&self.pool)
             .await
             .map_err(|_| ())
             .map(|_| ())?;
 
-	sqlx::query!("DELETE FROM refresh_tokens WHERE invalid_after <= ?", time)
+	sqlx::query!("DELETE FROM refresh_tokens WHERE invalid_after <= $1", time)
             .execute(&self.pool)
             .await
             .map_err(|_| ())
             .map(|_| ())?;
 
-	sqlx::query!("DELETE FROM challenges WHERE invalid_after <= ?", time)
+	sqlx::query!("DELETE FROM challenges WHERE invalid_after <= $1", time)
             .execute(&self.pool)
             .await
             .map_err(|_| ())
@@ -162,7 +162,7 @@ impl Store for DbStore {
         use std::iter::FromIterator;
 
         let mut results = sqlx::query!(
-            "SELECT scope FROM client_scopes WHERE client_id = ?",
+            "SELECT scope FROM client_scopes WHERE client_id = $1",
             client_id.0
         )
         .fetch_all(&self.pool)
@@ -190,7 +190,7 @@ impl Store for DbStore {
 	let invalid_after: i64 = ChallengeData::expiry().into();
 
         sqlx::query!(
-            "INSERT INTO challenges(id, req, ok, scope, invalid_after) VALUES (?,?,?,?,?)",
+            "INSERT INTO challenges(id, req, ok, scope, invalid_after) VALUES ($1,$2,$3,$4,$5)",
             info.id.0,
 	    req,
 	    info.ok,
@@ -208,7 +208,7 @@ impl Store for DbStore {
         &self,
         id: &ChallengeId,
     ) -> Result<Option<crate::auth::ChallengeData>, ()> {
-        let result = sqlx::query!("SELECT * FROM challenges WHERE id = ?", id.0)
+        let result = sqlx::query!("SELECT * FROM challenges WHERE id = $1", id.0)
             .fetch_optional(&self.pool)
             .await
             .map(|r| {
@@ -229,7 +229,7 @@ impl Store for DbStore {
         &self,
         id: &ChallengeId,
     ) -> Result<(), ()> {
-        sqlx::query!("DELETE FROM challenges WHERE id = ?", id.0)
+        sqlx::query!("DELETE FROM challenges WHERE id = $1", id.0)
             .execute(&self.pool)
             .await
             .map_err(|_| ())?;
@@ -242,7 +242,7 @@ impl Store for DbStore {
 	let scope = info.scope.as_joined();
 	
 	let result = sqlx::query!(
-	    "UPDATE challenges SET req = ?, ok = ?, subject = ?, scope = ? WHERE id = ?",
+	    "UPDATE challenges SET req = $1, ok = $2, subject = $3, scope = $4 WHERE id = $5",
 	    req,
 	    info.ok,
 	    info.subject,
@@ -268,7 +268,7 @@ impl DbStore {
 	let client_id = &seed.client_id;
 	
 	let _result = sqlx::query!(
-	    "INSERT INTO persistent_seeds(persistent_seed_id, subject, auth_data, client_id) VALUES(?, ?, ?, ?)",
+	    "INSERT INTO persistent_seeds(persistent_seed_id, subject, auth_data, client_id) VALUES($1, $2, $3, $4)",
 	    seed_id.0,
 	    subject,
 	    auth_data,
@@ -283,7 +283,7 @@ impl DbStore {
 
     pub async fn get_seed(&self, id: PersistentSeedId) -> Result<Option<PersistentSeed>, ()> {
 	sqlx::query!(
-	    "SELECT * FROM persistent_seeds WHERE persistent_seed_id = ?",
+	    "SELECT * FROM persistent_seeds WHERE persistent_seed_id = $1",
 	    id.0
 	).fetch_optional(&self.pool)
 	    .await
@@ -301,11 +301,11 @@ impl DbStore {
     pub async fn invalidate_seed(&self, id: PersistentSeedId) -> Option<()> {
 	let mut tx = self.pool.begin().await.ok()?;
 	sqlx::query!(
-	    "DELETE FROM persistent_seeds WHERE persistent_seed_id = ?",
+	    "DELETE FROM persistent_seeds WHERE persistent_seed_id = $1",
 	    id.0
 	).execute(&mut tx).await.ok()?;
 	sqlx::query!(
-	    "DELETE FROM refresh_tokens WHERE persistent_seed_id = ?",
+	    "DELETE FROM refresh_tokens WHERE persistent_seed_id = $1",
 	    id.0
 	).execute(&mut tx).await.ok()?;
 	tx.commit().await.ok()?;
@@ -314,7 +314,7 @@ impl DbStore {
 
     pub async fn invalidate_refresh_token(&self, id: RefreshTokenId) -> Option<()> {
 	sqlx::query!(
-	    "DELETE FROM refresh_tokens WHERE refresh_token_id = ?",
+	    "DELETE FROM refresh_tokens WHERE refresh_token_id = $1",
 	    id.0
 	)
 	    .execute(&self.pool)
@@ -326,7 +326,7 @@ impl DbStore {
 
     pub async fn validate_refresh_token(&self, id: RefreshTokenId) -> Option<()> {
 	sqlx::query!(
-	    "SElECT * FROM refresh_tokens WHERE refresh_token_id = ?",
+	    "SElECT * FROM refresh_tokens WHERE refresh_token_id = $1",
 	    id.0
 	).fetch_optional(&self.pool)
 	    .await
@@ -336,7 +336,7 @@ impl DbStore {
 
     pub async fn get_all_consents(&self, subject: &str) -> Result<Vec<Consent>, ()> {
 	sqlx::query!(
-	    r#"SELECT client_id, group_concat(scope, ' ') AS "scope!: String" FROM consent_scopes WHERE subject = ?"#,
+	    r#"SELECT client_id, string_agg(scope, ' ') AS "scope!: String" FROM consent_scopes WHERE subject = $1 GROUP BY client_id"#,
 	    subject
 	).fetch_all(&self.pool)
 	    .await
@@ -355,7 +355,7 @@ impl DbStore {
 
     pub async fn get_consent(&self, client_id: &ClientId, subject: &str) -> Result<Consent, ()> {
 	let scope = sqlx::query!(
-	    "SELECT scope FROM consent_scopes WHERE client_id = ? AND subject = ?",
+	    "SELECT scope FROM consent_scopes WHERE client_id = $1 AND subject = $2",
 	    client_id.0,
 	    subject
 	).fetch_all(&self.pool)
@@ -376,7 +376,7 @@ impl DbStore {
 	let parts = consent.scope.as_parts();
 	for part in parts {
 	    sqlx::query!(
-		"INSERT OR IGNORE INTO consent_scopes(client_id, subject, scope) VALUES(?, ?, ?)",
+		"INSERT INTO consent_scopes(client_id, subject, scope) VALUES($1, $2, $3) ON CONFLICT DO NOTHING",
 		consent.client_id.0,
 		consent.subject,
 		part
@@ -389,7 +389,7 @@ impl DbStore {
 
     pub async fn delete_consent(&self, client_id: &ClientId, subject: &str) -> Result<(), ()> {
 	sqlx::query!(
-	    "DELETE FROM consent_scopes WHERE client_id = ? AND subject = ?",
+	    "DELETE FROM consent_scopes WHERE client_id = $1 AND subject = $2",
 	    client_id.0,
 	    subject
 	).execute(&self.pool)
