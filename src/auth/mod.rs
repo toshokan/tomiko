@@ -389,27 +389,27 @@ impl<T> Redirect<T> {
     }
 }
 
-#[async_trait]
 pub trait Store {
-    async fn check_client_uri(&self, client_id: &ClientId, uri: &RedirectUri) -> Result<(), ()>;
-    async fn store_code(&self, data: AuthCodeData) -> Result<AuthCodeData, ()>;
-    async fn get_client(&self, client_id: &ClientId) -> Result<Option<Client>, ()>;
-    async fn put_client(
+    fn check_client_uri(&self, client_id: &ClientId, uri: &RedirectUri) -> Result<(), Error>;
+    fn store_code(&self, data: AuthCodeData) -> Result<AuthCodeData, Error>;
+    fn get_client(&self, client_id: &ClientId) -> Result<Option<Client>, Error>;
+    fn put_client(
         &self,
         client_id: ClientId,
+	name: String,
         secret: HashedClientSecret,
-    ) -> Result<Client, ()>;
-    async fn take_authcode_data(
+    ) -> Result<Client, Error>;
+    fn take_authcode_data(
         &self,
         client_id: &ClientId,
         code: &HashedAuthCode,
     ) -> Result<AuthCodeData, Error>;
-    async fn clean_up(&self) -> Result<(), ()>;
-    async fn trim_client_scopes(&self, client_id: &ClientId, scope: &Scope) -> Result<Scope, ()>;
-    async fn store_challenge_data(&self, info: ChallengeData) -> Result<ChallengeId, ()>;
-    async fn get_challenge_data(&self, id: &ChallengeId) -> Result<Option<ChallengeData>, ()>;
-    async fn delete_challenge_data(&self, id: &ChallengeId) -> Result<(), ()>;
-    async fn update_challenge_data(&self, info: ChallengeData) -> Result<ChallengeData, ()>;
+    fn clean_up(&self) -> Result<(), Error>;
+    fn trim_client_scopes(&self, client_id: &ClientId, scope: &Scope) -> Result<Scope, Error>;
+    fn store_challenge_data(&self, info: ChallengeData) -> Result<ChallengeId, Error>;
+    fn get_challenge_data(&self, id: &ChallengeId) -> Result<Option<ChallengeData>, Error>;
+    fn delete_challenge_data(&self, id: &ChallengeId) -> Result<(), Error>;
+    fn update_challenge_data(&self, info: ChallengeData) -> Result<ChallengeData, Error>;
 }
 
 #[async_trait]

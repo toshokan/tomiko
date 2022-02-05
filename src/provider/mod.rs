@@ -1,4 +1,4 @@
-use crate::{auth::{AuthorizationRequestData, Challenge, ChallengeInfo, MaybeChallenge::{self, *}, pkce}, core::{models::{AuthorizationData, Consent, ConsentId, PersistentSeed, PersistentSeedId, RefreshClaims, RefreshTokenId}, types::TokenId}};
+use crate::{auth::{AuthorizationRequestData, Challenge, ChallengeInfo, MaybeChallenge::{self, *}, pkce}, core::{models::{AuthorizationData, Consent, ConsentId, PersistentSeed, PersistentSeedId, RefreshClaims, RefreshTokenId, ClientInfo}, types::TokenId}};
 use crate::core::models::Client;
 use crate::core::types::{BearerToken, ChallengeId, ClientId, RedirectUri, Scope};
 use crate::oidc::types::Nonce;
@@ -14,6 +14,8 @@ use crate::{
 };
 
 pub mod error;
+
+use error::Error;
 
 use crate::db::DbStore;
 use crate::http::server::Server;
@@ -38,7 +40,6 @@ impl OAuth2Provider {
     ) -> Result<(), BadRequest> {
         self.store
             .check_client_uri(client_id, redirect_uri)
-            .await
             .map_err(|_| {
                 BadRequest::BadRedirect
             })?;
@@ -50,7 +51,7 @@ impl OAuth2Provider {
         &self,
         cred: &ClientCredentials,
     ) -> Result<Client, AccessTokenError> {
-        let client = self.store.get_client(&cred.client_id).await;
+        let client = self.store.get_client(&cred.client_id);
 
         if let Ok(Some(c)) = client {
             let result = self
@@ -69,7 +70,7 @@ impl OAuth2Provider {
         })
     }
 
-    async fn start_clean_up_worker(&self) -> Result<(), ()> {
+    async fn start_clean_up_worker(&self) -> Result<(), Error> {
         use std::time::Duration;
         use tokio::time::interval;
 
@@ -77,7 +78,7 @@ impl OAuth2Provider {
 
         loop {
             interval.tick().await;
-            self.store.clean_up().await?
+            self.store.clean_up()?;
         }
     }
 }
@@ -97,7 +98,6 @@ impl OAuth2Provider {
 	let challenge = self.make_challenge(&info.id);
 
 	self.store.store_challenge_data(info)
-	    .await
 	    .map_err(|_| AuthorizationError::server_error())
 	    .add_state_context(&parts.state)
 	    .add_redirect_context(uri)?;
@@ -120,7 +120,6 @@ impl OAuth2Provider {
                 let data = self
                     .store
                     .take_authcode_data(&client.id, &hashed_code)
-                    .await
                     .map_err(|_| AccessTokenErrorKind::InvalidGrant)?;
 
 		if let Some(challenge) = data.req.ext.pkce_challenge {
@@ -149,7 +148,7 @@ impl OAuth2Provider {
 				scope: data.req.scope.clone()
 			    }
 			};
-			self.store.store_persistent_seed(&seed).await
+			self.store.store_persistent_seed(&seed)
 			    .map_err(|_| AccessTokenErrorKind::InvalidRequest)?;
 
 			let token = self.token.new_refresh_token(&seed);
@@ -172,8 +171,7 @@ impl OAuth2Provider {
             ClientCredentials(req) => {
                 let scope = self
                     .store
-                    .trim_client_scopes(&client.id, &req.scope)
-                    .await;
+                    .trim_client_scopes(&client.id, &req.scope);
 
 		let scope = match scope {
 		    Ok(scope) if scope == req.scope => scope,
@@ -194,29 +192,32 @@ impl OAuth2Provider {
         }
     }
 
-    pub fn validate_token_for_challenge(&self, token: BearerToken) -> Option<()> {
-	let claims = self.token.validate_token(&token.0).ok()?;
+    fn validate_token_contains(&self, token: BearerToken, scope_entry: &str) -> Result<(), Error> {
+	let claims = self.token.validate_token(&token.0)?;
 	match claims.scope {
-	    Some(scope) if scope.contains("tomiko::challenge:rw") => Some(()),
-	    _ => None
+	    Some(scope) if scope.contains(scope_entry) => Ok(()),
+	    _ => Err(Error::Unauthorized)
 	}
     }
 
-    pub fn validate_token_for_consent(&self, token: BearerToken) -> Option<()> {
-	let claims = self.token.validate_token(&token.0).ok()?;
-	match claims.scope {
-	    Some(scope) if scope.contains("tomiko::consent:rw") => Some(()),
-	    _ => None
-	}
+    fn validate_token_for_challenge(&self, token: BearerToken) -> Result<(), Error> {
+	self.validate_token_contains(token, "tomiko::challenge:rw")
     }
 
-    pub async fn get_challenge_info(&self, token: BearerToken, id: ChallengeId) -> Option<ChallengeInfo> {
+    fn validate_token_for_consent(&self, token: BearerToken) -> Result<(), Error> {
+	self.validate_token_contains(token, "tomiko::consent:rw")
+    }
+
+    fn validate_token_for_client_info(&self, token: BearerToken) -> Result<(), Error> {
+	self.validate_token_contains(token, "tomiko::client:ro")
+    }
+
+    pub async fn get_challenge_info(&self, token: BearerToken, id: ChallengeId) -> Result<ChallengeInfo, Error> {
 	self.validate_token_for_challenge(token)?;
 	self.store
-	    .get_challenge_data(&id)
-	    .await
-	    .ok()?
+	    .get_challenge_data(&id)?
 	    .map(Into::into)
+	    .ok_or(Error:: BadRequest)
     }
 
     pub async fn get_challenge_result(
@@ -226,13 +227,11 @@ impl OAuth2Provider {
         let info = self
             .store
             .get_challenge_data(&id)
-            .await
 	    .map_err(|_| BadRequest::BadChallenge)
 	    .without_redirect()?;
 
 	//  Can only be called once.
 	self.store.delete_challenge_data(&id)
-	    .await
 	    .map_err(|_| BadRequest::ServerError)
 	    .without_redirect()?;
 	
@@ -266,7 +265,6 @@ impl OAuth2Provider {
                     // Store code
                     self.store
                         .store_code(data)
-                        .await
                         .map_err(|_| AuthorizationError::server_error())
 			.add_state_context(&state)
 			.add_redirect_context(uri.clone())?;
@@ -310,36 +308,36 @@ impl OAuth2Provider {
 	&self,
 	token: BearerToken,
 	id: ConsentId
-    ) -> Result<Consent, ()> {
-	self.validate_token_for_consent(token).ok_or_else(|| ())?;
-	self.store.get_consent(&id.client_id, &id.subject).await
+    ) -> Result<Consent, Error> {
+	self.validate_token_for_consent(token)?;
+	Ok(self.store.get_consent(&id.client_id, &id.subject)?)
     }
 
     pub async fn get_all_consents(
 	&self,
 	token: BearerToken,
 	subject: String
-    ) -> Result<Vec<Consent>, ()> {
-	self.validate_token_for_consent(token).ok_or_else(|| ())?;
-	self.store.get_all_consents(&subject).await
+    ) -> Result<Vec<Consent>, Error> {
+	self.validate_token_for_consent(token)?;
+	Ok(self.store.get_all_consents(&subject)?)
     }
 
     pub async fn put_consent(
 	&self,
 	token: BearerToken,
 	consent:  Consent
-    ) -> Result<(), ()> {
-	self.validate_token_for_consent(token).ok_or_else(|| ())?;
-	self.store.put_consent(consent).await
+    ) -> Result<(), Error> {
+	self.validate_token_for_consent(token)?;
+	Ok(self.store.put_consent(consent)?)
     }
 
     pub async fn revoke_consent(
 	&self,
 	token: BearerToken,
 	id:  ConsentId,
-    ) -> Result<(), ()> {
-	self.validate_token_for_consent(token).ok_or_else(|| ())?;
-	self.store.delete_consent(&id.client_id, &id.subject).await
+    ) -> Result<(), Error> {
+	self.validate_token_for_consent(token)?;
+	Ok(self.store.delete_consent(&id.client_id, &id.subject)?)
     }
 
     pub async fn update_challenge_data_request(
@@ -347,14 +345,14 @@ impl OAuth2Provider {
 	token: BearerToken,
         id: ChallengeId,
         req: UpdateChallengeDataRequest,
-    ) -> Result<crate::auth::UpdateChallengeDataResponse, ()> {
-	self.validate_token_for_challenge(token).ok_or_else(|| ())?;
+    ) -> Result<crate::auth::UpdateChallengeDataResponse, Error> {
+	self.validate_token_for_challenge(token)?;
 	
         let mut info = self
             .store
-            .get_challenge_data(&id)
-            .await?
-            .expect("No matching challenge");
+            .get_challenge_data(&id)?
+	    .ok_or(Error::BadRequest)?;
+	    
         info.ok = match req {
             UpdateChallengeDataRequest::Accept{subject, scope} => {
 		info.subject = Some(subject);
@@ -363,7 +361,7 @@ impl OAuth2Provider {
 	    }
             UpdateChallengeDataRequest::Reject => false
         };
-        self.store.update_challenge_data(info).await?;
+        self.store.update_challenge_data(info)?;
         Ok(UpdateChallengeDataResponse {
             redirect_to: format!("{}/challenge/v1/continue/{}", &self.self_base, id.0),
         })
@@ -375,6 +373,19 @@ impl OAuth2Provider {
 	    base_url: self.challenge_base.clone(),
 	    id
 	}
+    }
+
+    pub async fn get_client_info(
+	&self,
+	token: BearerToken,
+	id: ClientId
+    ) -> Result<Option<ClientInfo>, Error> {
+	self.validate_token_for_client_info(token)?;
+	let client = self.store.get_client(&id)?;
+	Ok(client.map(|c| ClientInfo {
+	    client_id: c.id,
+	    name: c.name
+	}))
     }
 }
 
@@ -426,16 +437,13 @@ impl TokenService {
             .expect("Unix Epoch is in the past.")
     }
 
-    pub fn validate_token(&self, token: &str) -> Result<AccessClaims, ()> {
+    pub fn validate_token(&self, token: &str) -> Result<AccessClaims, Error> {
 	let mut validation = jsonwebtoken::Validation::default();
 	validation.iss = Some("tomiko".to_string());
 	validation.algorithms = vec![jsonwebtoken::Algorithm::ES256];
 	jsonwebtoken::decode::<AccessClaims>(token, &self.public, &validation)
 	    .map(|td| td.claims)
-	    .map_err(|e| {
-		dbg!(e);
-		()
-	    })
+	    .map_err(|_| Error::Unauthorized)
     }
 
     pub fn new_token(&self, client_id: &ClientId, subject: &str, scope: &Scope) -> String {
@@ -499,7 +507,8 @@ impl TokenService {
 }
 
 async fn tomikod(config: Config) -> Option<()> {
-    let store = DbStore::acquire(&config.database_url).await.ok()?;
+    let store = DbStore::acquire(&config.database_url).ok()?;
+    store.migrate();
     let hasher = HashingService::with_secret_key(config.hash_secret);
     let token = TokenService::new(&config.jwt_private_key_file, &config.jwt_public_key_file);
     let provider = Arc::new(OAuth2Provider {

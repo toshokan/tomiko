@@ -1,4 +1,4 @@
-use std::{collections::HashSet, time::{Duration, SystemTime}};
+use std::{collections::HashSet, time::{Duration, SystemTime}, str::FromStr};
 
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
@@ -82,6 +82,14 @@ pub enum ResponseType {
 #[derive(serde::Serialize)]
 #[serde(transparent)]
 pub struct ClientId(pub String); // TODO
+
+impl FromStr for ClientId {
+    type Err = std::convert::Infallible;
+    
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+	Ok(Self(s.to_string()))
+    }
+}
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 #[derive(serde::Deserialize, serde::Serialize)]

@@ -1,5 +1,7 @@
 use crate::core::{models::{PersistentSeedId, RefreshTokenId}, types::{AuthCode, ChallengeId, TokenId}};
 
+use super::hash::Salt;
+
 pub trait FromRandom {
     fn from_random() -> Self;
 }
@@ -31,6 +33,12 @@ impl FromRandom for RefreshTokenId {
 impl FromRandom for TokenId {
     fn from_random() -> Self {
 	TokenId(random_string(128))
+    }
+}
+
+impl FromRandom for Salt {
+    fn from_random() -> Self {
+	Salt(random_string(32))
     }
 }
 

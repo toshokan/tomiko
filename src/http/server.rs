@@ -1,6 +1,6 @@
 use crate::auth::{ClientCredentials, UpdateChallengeDataRequest};
 use crate::core::models::{Consent, ConsentId};
-use crate::core::types::{BearerToken, ChallengeId};
+use crate::core::types::{BearerToken, ChallengeId, ClientId};
 
 use std::sync::Arc;
 use warp::{Filter, Rejection};
@@ -78,6 +78,7 @@ impl Server {
         let oauth = warp::path("oauth");
 	let challenge = warp::path("challenge");
 	let consent = warp::path("consent");
+	let client = warp::path("client");
         let with_provider = warp::any().map(move || provider.clone());
 
 	// Either a redirect success, a redirect error, or a direct error
@@ -110,7 +111,7 @@ impl Server {
                     .get_challenge_info(token, id)
                     .await
                     .map(|i| warp::reply::json(&i))
-                    .ok_or_else(|| warp::reject()) // TODO
+                    .map_err(|_| warp::reject()) // TODO
             });
 
         let challenge_update = warp::path!("data" / ChallengeId)
@@ -187,6 +188,18 @@ impl Server {
                     .map_err(|_| warp::reject()) // TODO
             });
 
+	let client_get = warp::path!("info" / ClientId)
+            .and(warp::get())
+            .and(with_provider.clone())
+            .and(bearer())
+            .and_then(|id: ClientId, provider: Arc<OAuth2Provider>, token| async move {
+                provider
+                    .get_client_info(token, id)
+                    .await
+                    .map(|i| warp::reply::json(&i))
+                    .map_err(|_| warp::reject()) // TODO
+            });
+
 	let cors = warp::cors()
 	    .allow_any_origin();
 
@@ -217,11 +230,16 @@ impl Server {
 			    .or(consent_delete)
 		    )
 	    )
+	    .or(
+		client
+		    .and(warp::path("v1"))
+		    .and(client_get)
+	    )
             .recover(handle_reject)
             .with(warp::log("http-api"))
             .with(cors);
 
-        warp::serve(routes).run(([127, 0, 0, 1], 8001)).await;
+        warp::serve(routes).run(([0, 0, 0, 0], 8001)).await;
 
         Some(())
     }

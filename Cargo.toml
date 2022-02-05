@@ -7,10 +7,10 @@ authors = ["toshokan <toshokan@shojigate.net>"]
 edition = "2018"
 
 [dependencies]
-argonautica = { git = "https://github.com/bcmyers/argonautica" }
+rust-argon2 = "1"
 async-trait = "^0.1"
 base64 = "^0"
-clap = "3.0.0-beta.2"
+clap = { version = "3", features = ["derive", "env"] }
 dotenv = "^0"
 form_urlencoded = "^1"
 http-basic-auth = "^0"
@@ -20,8 +20,9 @@ serde = { version = "^1", features = ["derive"] }
 serde_json = "^1"
 serde_urlencoded = "^0.7"
 sha2 = "^0"
-sqlx = { version = "0.5", default-features = false, features = ["runtime-tokio-native-tls", "postgres", "macros"] }
-tokio = { version = "^1", features = ["macros"] }
+diesel = { version = "1.4", features = ["postgres", "r2d2", "serde_json"] }
+diesel_migrations = "1"
+tokio = { version = "^1", features = ["macros", "rt-multi-thread"] }
 tracing-subscriber = "^0.2"
 url = "^2"
 warp = "^0.3"

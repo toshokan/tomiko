@@ -1,13 +1,14 @@
 use crate::{auth::{MaybeRedirect, Redirect, WithState}, core::types::RedirectUri};
 
 pub enum Error {
+    Unauthorized,
     BadRequest,
-    Db(sqlx::Error),
+    Db(diesel::result::Error),
     Serde(serde_json::Error)
 }
 
-impl From<sqlx::Error> for Error {
-    fn from(e: sqlx::Error) -> Self {
+impl From<diesel::result::Error> for Error {
+    fn from(e: diesel::result::Error) -> Self {
 	Self::Db(e)
     }
 }
