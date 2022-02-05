@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 use super::error::AuthRejection;
 use warp::reply::{Reply, Response};
 use warp::Rejection;

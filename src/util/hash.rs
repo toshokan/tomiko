@@ -1,5 +1,10 @@
 use crate::core::types::{AuthCode, ClientId, ClientSecret, HashedAuthCode, HashedClientSecret};
 
+use super::random::FromRandom;
+
+#[derive(Debug)]
+pub struct Salt(pub String);
+
 #[derive(Debug)]
 pub struct HashedClientCredentials {
     pub client_id: ClientId,
@@ -28,18 +33,24 @@ impl HashingService {
         Self { secret_key }
     }
 
+    fn get_config(&self) -> argon2::Config {
+	let mut config = argon2::Config::default();
+	config.secret = &self.secret_key.as_bytes();
+	config
+    }
+
     pub fn hash<T, H>(&self, to_hash: &T) -> Result<H, ()>
     where
 	T: HashTo<HashedType = H>,
 	H: From<String>
     {
 	let s = to_hash.as_ref();
-	let mut hasher = argonautica::Hasher::default();
-        let hash = hasher
-            .with_password(s)
-            .with_secret_key(&self.secret_key)
-            .hash()
-	    .map_err(|_| ())?;
+	let salt = Salt::from_random();
+	let hash = argon2::hash_encoded(
+	    s.as_bytes(),
+	    salt.0.as_bytes(),
+	    &self.get_config()
+	).map_err(|_| ())?;
 	
 	Ok(hash.into())
     }
@@ -49,13 +60,13 @@ impl HashingService {
 	T: HashTo<HashedType = H>,
 	H: AsRef<str>
     {
-	let mut verifier = argonautica::Verifier::default();
-        verifier
-            .with_secret_key(&self.secret_key)
-            .with_password(secret.as_ref())
-            .with_hash(hashed.as_ref())
-            .verify()
-            .map_err(|_| ())
+	let hashed = hashed.as_ref();
+	argon2::verify_encoded_ext(
+	    hashed,
+	    secret.as_ref().as_bytes(),
+	    &self.secret_key.as_bytes(),
+	    &[]
+	).map_err(|_| ())
     }
 
     pub fn hash_without_salt<T, H>(&self, to_hash: &T) -> H

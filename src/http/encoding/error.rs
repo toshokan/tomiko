@@ -1,6 +1,6 @@
-use crate::auth::{
+use crate::{auth::{
     AccessTokenError, AuthorizationError, BadRequest, MaybeRedirect, Redirect, WithState,
-};
+}, provider::error::Error};
 use warp::{Rejection, Reply};
 
 #[derive(Debug, Clone)]
@@ -8,9 +8,20 @@ pub enum AuthRejection {
     Authorization(Redirect<WithState<AuthorizationError>>),
     AccessToken(AccessTokenError),
     BadRequest(BadRequest),
+    ServerError
 }
 
 impl warp::reject::Reject for AuthRejection {}
+
+impl From<Error> for AuthRejection {
+    fn from(e: Error) -> Self {
+	match e {
+	    // TODO
+	    Error::BadRequest => AuthRejection::BadRequest(BadRequest::ServerError),
+	    _ => AuthRejection::ServerError
+	}
+    }
+}
 
 impl From<BadRequest> for AuthRejection {
     fn from(error: BadRequest) -> Self {
@@ -55,8 +66,10 @@ pub async fn handle_reject(err: Rejection) -> Result<impl Reply, Rejection> {
                 AuthRejection::BadRequest(b) => Ok(warp::reply::with_status(
                     warp::reply::json(&b),
                     warp::http::StatusCode::BAD_REQUEST,
-                )
-                .into_response()),
+                ).into_response()),
+		AuthRejection::ServerError => Ok(
+		    warp::reply::with_status("Server Error", warp::http::StatusCode::INTERNAL_SERVER_ERROR)
+			.into_response())
             }
         }
         _ => Err(err),

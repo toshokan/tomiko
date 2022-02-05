@@ -5,10 +5,11 @@ use super::types::*;
 #[derive(Debug)]
 pub struct Client {
     pub id: ClientId,
+    pub name: String,
     pub secret: HashedClientSecret,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct AuthCodeData {
     pub code: HashedAuthCode,
     pub client_id: ClientId,
@@ -82,4 +83,11 @@ pub struct Consent {
 pub struct ConsentId  {
     pub client_id: ClientId,
     pub subject: String
+}
+
+#[derive(Debug)]
+#[derive(serde::Serialize)]
+pub struct ClientInfo {
+    pub client_id: ClientId,
+    pub name: String
 }
