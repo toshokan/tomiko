@@ -23,6 +23,8 @@ use jsonwebtoken::{DecodingKey, EncodingKey};
 use std::sync::Arc;
 use self::error::ResultExt;
 
+use tracing::{event, Level};
+
 #[derive(Debug)]
 pub struct OAuth2Provider {
     store: DbStore,
@@ -33,11 +35,13 @@ pub struct OAuth2Provider {
 }
 
 impl OAuth2Provider {
+    #[tracing::instrument(skip(self))]
     pub async fn validate_client(
         &self,
         client_id: &ClientId,
         redirect_uri: &RedirectUri
     ) -> Result<(), BadRequest> {
+	event!(Level::TRACE, "Validating client URI");
         self.store
             .check_client_uri(client_id, redirect_uri)
             .map_err(|_| {
@@ -47,10 +51,12 @@ impl OAuth2Provider {
         Ok(())
     }
 
+    #[tracing::instrument(skip(self, cred), fields(client_id = ?cred.client_id))]
     async fn check_client_authentication(
         &self,
         cred: &ClientCredentials,
     ) -> Result<Client, AccessTokenError> {
+	event!(Level::TRACE, "Checking client authentication");
         let client = self.store.get_client(&cred.client_id);
 
         if let Ok(Some(c)) = client {
@@ -63,6 +69,7 @@ impl OAuth2Provider {
             }
         }
 
+	event!(Level::WARN, "Invalid authentication");
         Err(AccessTokenError {
             kind: AccessTokenErrorKind::InvalidClient,
             description: Some("Bad authentication".to_string()),
@@ -75,15 +82,17 @@ impl OAuth2Provider {
         use tokio::time::interval;
 
         let mut interval = interval(Duration::from_secs(15));
-
+	event!(Level::DEBUG, "Starting clean-up worker");
         loop {
             interval.tick().await;
+	    event!(Level::TRACE, "Cleaning invalid entries codes, tokens, and challenges");
             self.store.clean_up()?;
         }
     }
 }
 
 impl OAuth2Provider {
+    #[tracing::instrument(skip_all)]
     pub async fn authorization_request(
         &self,
         req: AuthorizationRequest,
@@ -102,19 +111,28 @@ impl OAuth2Provider {
 	    .add_state_context(&parts.state)
 	    .add_redirect_context(uri)?;
 
+	event!(
+	    Level::DEBUG,
+	    client_id = ?parts.client_id,
+	    challenge_id = ?challenge.id,
+	    "Issuing authorization challenge"
+	);
         Ok(Challenge(challenge))
     }
 
+    #[tracing::instrument(skip_all, fields(client_id = ?credentials.client_id))]
     pub async fn access_token_request(
         &self,
         credentials: ClientCredentials,
         req: TokenRequest,
     ) -> Result<AccessTokenResponse, AccessTokenError> {
+	event!(Level::TRACE, "Handling access token request");
         let client = self.check_client_authentication(&credentials).await?;
         use TokenRequest::*;
 	
         match req {
             AuthenticationCode(req) => {
+		event!(Level::TRACE, "Handling authorization_code grant");
 		let hashed_code = self.hasher.hash_without_salt(&req.code);
 		
                 let data = self
@@ -123,6 +141,7 @@ impl OAuth2Provider {
                     .map_err(|_| AccessTokenErrorKind::InvalidGrant)?;
 
 		if let Some(challenge) = data.req.ext.pkce_challenge {
+		    event!(Level::DEBUG, "Verifying PKCE challenge");
 		    pkce::verify(&challenge, req.pkce_verifier.as_ref())?;
 		}
 
@@ -131,6 +150,7 @@ impl OAuth2Provider {
                     let token_type = TokenService::token_type();
 
 		    let oidc = if data.req.scope.has_openid() || data.req.ext.oidc.is_some() {
+			event!(Level::DEBUG, "Processing OpenID Connect extension data");
 			let nonce = data.req.ext.oidc.map(|o| o.nonce).flatten();
 			Some(crate::oidc::AccessTokenResponse {
 			    id_token: self.token.new_id_token(&client.id, &data.subject, nonce.as_ref())
@@ -148,6 +168,12 @@ impl OAuth2Provider {
 				scope: data.req.scope.clone()
 			    }
 			};
+			event!(
+			    Level::DEBUG,
+			    "t/ps" = ?seed.id,
+			    "sub" = ?seed.auth_data.subject,
+			    "Generating persistent seed"
+			);
 			self.store.store_persistent_seed(&seed)
 			    .map_err(|_| AccessTokenErrorKind::InvalidRequest)?;
 
@@ -169,13 +195,21 @@ impl OAuth2Provider {
                 }
             }
             ClientCredentials(req) => {
+		event!(Level::TRACE, "Handling client_credentials grant");
                 let scope = self
                     .store
                     .trim_client_scopes(&client.id, &req.scope);
 
 		let scope = match scope {
 		    Ok(scope) if scope == req.scope => scope,
-		    _ => return Err(AccessTokenErrorKind::InvalidGrant.into())
+		    _ => {
+			event!(
+			    Level::ERROR,
+			    scope = %req.scope.as_joined(),
+			    "Invalid scopes for client"
+			);
+			return Err(AccessTokenErrorKind::InvalidGrant.into())
+		    }
 		};
 
                 let access_token = self.token.new_token(&client.id, &client.id.0.to_string(), &scope);
@@ -212,7 +246,12 @@ impl OAuth2Provider {
 	self.validate_token_contains(token, "tomiko::client:ro")
     }
 
+    #[tracing::instrument(skip(self, token))]
     pub async fn get_challenge_info(&self, token: BearerToken, id: ChallengeId) -> Result<ChallengeInfo, Error> {
+	event!(
+	    Level::DEBUG,
+	    "Retrieving challenge info"
+	);
 	self.validate_token_for_challenge(token)?;
 	self.store
 	    .get_challenge_data(&id)?
@@ -220,10 +259,15 @@ impl OAuth2Provider {
 	    .ok_or(Error:: BadRequest)
     }
 
+    #[tracing::instrument(skip(self))]
     pub async fn get_challenge_result(
         &self,
         id: ChallengeId,
     ) -> Result<Redirect<AuthorizationResponse>, MaybeRedirect<WithState<AuthorizationError>, BadRequest>> {
+	event!(
+	    Level::DEBUG,
+	    "Getting final challenge outcome"
+	);
         let info = self
             .store
             .get_challenge_data(&id)
@@ -241,6 +285,10 @@ impl OAuth2Provider {
 	    let state = parts.state.clone();
 
 	    if !info.ok {
+		event!(
+		    Level::WARN,
+		    "Challenge was not passed"
+		);
                 Err(AuthorizationError::access_denied())
 		    .add_state_context(&state)
 		    .add_redirect_context(uri.clone())?;
@@ -248,6 +296,11 @@ impl OAuth2Provider {
 	    
 	    match info.req {
                 AuthorizationRequest::AuthorizationCode(ref req) => {
+		    event!(
+			Level::DEBUG,
+			client_id = ?req.client_id,
+			"Handling code response"
+		    );
 		    let subject = info.subject.expect("Accepted challenge without subject");
 		    
 		    let mut req = req.clone();
@@ -255,6 +308,13 @@ impl OAuth2Provider {
 
                     let code = AuthCode::from_random();
 		    let hashed_code = self.hasher.hash_without_salt(&code);
+
+		    event!(
+			Level::DEBUG,
+			client_id = ?req.client_id,
+			hashed_code = ?hashed_code,
+			"Generated authorization code"
+		    );
                     let data = AuthCodeData {
                         code: hashed_code,
                         client_id: req.client_id.clone(),
@@ -275,8 +335,18 @@ impl OAuth2Provider {
                 }
 		AuthorizationRequest::Implicit(AuthorizationRequestData{ ref client_id, .. }) |
 		AuthorizationRequest::ImplicitId(AuthorizationRequestData{ ref client_id, .. }) => {
+		    event!(
+			Level::DEBUG,
+			client_id = ?client_id,
+			"Handling implicit response"
+		    );
 		    let subject = info.subject.expect("Accepted challenge without subject");
 		    let oidc = if let AuthorizationRequest::ImplicitId(req) = &info.req {
+			event!(
+			    Level::DEBUG,
+			    client_id = ?client_id,
+			    "Processing OpenID Connect implicit_id Extension"
+			);
 			let id_token = self.token.new_id_token(&req.client_id, &subject, Some(&req.ext.oidc.nonce));
 			Some(crate::oidc::AccessTokenResponse {
 			    id_token
@@ -304,48 +374,58 @@ impl OAuth2Provider {
         }
     }
 
+    #[tracing::instrument(skip(self, token))]
     pub async fn get_consent(
 	&self,
 	token: BearerToken,
 	id: ConsentId
     ) -> Result<Consent, Error> {
+	event!(Level::DEBUG, "Getting consent data");
 	self.validate_token_for_consent(token)?;
 	Ok(self.store.get_consent(&id.client_id, &id.subject)?)
     }
 
+    #[tracing::instrument(skip(self, token))]
     pub async fn get_all_consents(
 	&self,
 	token: BearerToken,
 	subject: String
     ) -> Result<Vec<Consent>, Error> {
+	event!(Level::DEBUG, "Getting all consent data");
 	self.validate_token_for_consent(token)?;
 	Ok(self.store.get_all_consents(&subject)?)
     }
 
+    #[tracing::instrument(skip(self, token))]
     pub async fn put_consent(
 	&self,
 	token: BearerToken,
 	consent:  Consent
     ) -> Result<(), Error> {
+	event!(Level::DEBUG, "Storing consent decision");
 	self.validate_token_for_consent(token)?;
 	Ok(self.store.put_consent(consent)?)
     }
 
+    #[tracing::instrument(skip(self, token))]
     pub async fn revoke_consent(
 	&self,
 	token: BearerToken,
 	id:  ConsentId,
     ) -> Result<(), Error> {
+	event!(Level::DEBUG, "Revoking consent decision");
 	self.validate_token_for_consent(token)?;
 	Ok(self.store.delete_consent(&id.client_id, &id.subject)?)
     }
 
+    #[tracing::instrument(skip(self, token))]
     pub async fn update_challenge_data_request(
         &self,
 	token: BearerToken,
         id: ChallengeId,
         req: UpdateChallengeDataRequest,
     ) -> Result<crate::auth::UpdateChallengeDataResponse, Error> {
+	event!(Level::DEBUG, "Updating challenge data");
 	self.validate_token_for_challenge(token)?;
 	
         let mut info = self
@@ -355,11 +435,20 @@ impl OAuth2Provider {
 	    
         info.ok = match req {
             UpdateChallengeDataRequest::Accept{subject, scope} => {
+		event!(
+		    Level::TRACE,
+		    subject = %subject,
+		    scope = %scope.as_joined(),
+		    "Challenge accepted"
+		);
 		info.subject = Some(subject);
 		info.scope = scope;
 		true
 	    }
-            UpdateChallengeDataRequest::Reject => false
+            UpdateChallengeDataRequest::Reject => {
+		event!(Level::TRACE, "Challenge rejected");
+		false
+	    }
         };
         self.store.update_challenge_data(info)?;
         Ok(UpdateChallengeDataResponse {
@@ -446,6 +535,7 @@ impl TokenService {
 	    .map_err(|_| Error::Unauthorized)
     }
 
+    #[tracing::instrument(skip(self, scope), fields(scope = %scope.as_joined()))]
     pub fn new_token(&self, client_id: &ClientId, subject: &str, scope: &Scope) -> String {
         let time_now = Self::current_timestamp().as_secs();
         let expiry = time_now + (15 * 60);
@@ -461,6 +551,7 @@ impl TokenService {
 	    scope: Some(scope.clone())
 	};
 
+	event!(Level::DEBUG, "Issuing access_token");
 	self.make_token(claims)
     }
 
@@ -474,6 +565,7 @@ impl TokenService {
         encode(&header, &claims, &self.secret).expect("Failed to encode token claims")
     }
 
+    #[tracing::instrument(skip(self, nonce))]
     pub fn new_id_token(&self, client_id: &ClientId, subject: &str, nonce: Option<&Nonce>) -> String {
         let time_now = Self::current_timestamp().as_secs();
         let expiry = time_now + 3600;
@@ -489,9 +581,11 @@ impl TokenService {
 	    azp: client_id.0.to_string(),
         };
 
+	event!(Level::DEBUG, "Issuing id_token");
 	self.make_token(claims)
     }
 
+    #[tracing::instrument(skip_all)]
     pub fn new_refresh_token(&self, seed: &PersistentSeed) -> String {
 	let time_now = Self::current_timestamp().as_secs();
         let expiry = time_now + (24 * 60 * 60);
@@ -502,12 +596,19 @@ impl TokenService {
 	    iat: expiry
 	};
 
+	event!(
+	    Level::DEBUG,
+	    "t/ps" = ?seed.id,
+	    "Issuing refresh token"
+	);
 	self.make_token(claims)
     }
 }
 
 async fn tomikod(config: Config) -> Option<()> {
+    event!(Level::DEBUG, "Acquiring database connection");
     let store = DbStore::acquire(&config.database_url).ok()?;
+    event!(Level::DEBUG, "Running pending database migrations");
     store.migrate();
     let hasher = HashingService::with_secret_key(config.hash_secret);
     let token = TokenService::new(&config.jwt_private_key_file, &config.jwt_public_key_file);
@@ -524,6 +625,7 @@ async fn tomikod(config: Config) -> Option<()> {
         tokio::spawn(async move { provider.start_clean_up_worker().await });
     };
 
+    event!(Level::DEBUG, "Starting HTTP server");
     let server = Server::new(provider);
     server.serve().await;
     Some(())
@@ -585,7 +687,11 @@ impl Config {
 
 pub async fn main() -> Result<(), ()> {
     tracing_subscriber::fmt::init();
+    event!(Level::INFO, "Starting tomiko");
+
+    event!(Level::DEBUG, "Loading configuration from environment");
     dotenv::dotenv().ok();
     let config = Config::from_env();
+    
     tomikod(config).await.ok_or(())
 }
