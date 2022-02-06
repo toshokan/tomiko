@@ -1,4 +1,4 @@
-use crate::{auth::{ClientCredentials, introspection::{IntrospectionRequest, IntrospectionResponse, IntrospectionClaims, TokenTypeHint}}, core::types::ClientId};
+use crate::{auth::{ClientCredentials, introspection::{IntrospectionRequest, IntrospectionResponse, IntrospectionClaims}, TokenTypeHint}, core::types::ClientId};
 
 use super::{OAuth2Provider, token::TokenService};
 use super::Error;

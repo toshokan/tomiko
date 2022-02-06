@@ -1,14 +1,8 @@
 use crate::core::types::{ClientId, Scope, TokenId};
 
 use super::TokenType;
+use super::TokenTypeHint;
 
-#[derive(Debug)]
-#[derive(serde::Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub enum TokenTypeHint {
-    AccessToken,
-    RefreshToken
-}
 
 #[derive(Debug)]
 #[derive(serde::Deserialize)]

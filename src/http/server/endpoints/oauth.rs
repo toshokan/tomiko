@@ -35,6 +35,16 @@ pub fn oauth_endpoint(provider: Arc<OAuth2Provider>) -> impl warp::Filter<Extrac
 	    reply::json_encode(result)
 	});
 
+    let revoke = warp::path("revoke")
+	.and(warp::post())
+	.and(with_provider.clone())
+	.and(encoding::body_with_credentials())
+	.and_then(|provider: Arc<OAuth2Provider>, (credentials, req)| async move {
+	    reply::json_encode(
+		provider.revocation_request(credentials, req).await
+	    )
+	});
+
     warp::path("v1")
-	.and(authenticate.or(token).or(introspect))
+	.and(authenticate.or(token).or(introspect).or(revoke))
 }

@@ -16,6 +16,7 @@ pub mod error;
 mod token;
 mod claims;
 pub mod introspection;
+pub mod revocation;
 
 use token::TokenService;
 

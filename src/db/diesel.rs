@@ -326,11 +326,11 @@ impl DbStore {
 	block_in_place(|| {
 	    self.conn().transaction::<_, diesel::result::Error, _>(|| {
 		diesel::delete(
-		    persistent_seeds.find(&id.0)
-		).execute(&self.conn())?;
-
-		diesel::delete(
 		    refresh_tokens.filter(tokens_dsl::persistent_seed_id.eq(&id.0))
+		).execute(&self.conn())?;
+		
+		diesel::delete(
+		    persistent_seeds.find(&id.0)
 		).execute(&self.conn())?;
 		
 		Ok(())

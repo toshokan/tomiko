@@ -6,6 +6,8 @@ use crate::core::types::{
 
 pub mod pkce;
 pub mod introspection;
+pub mod revocation;
+
 use crate::oidc;
 use crate::provider::error::Error;
 use crate::util::random::FromRandom;
@@ -149,6 +151,14 @@ pub enum TokenType {
     Bearer
 }
 
+#[derive(Debug)]
+#[derive(serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum TokenTypeHint {
+    AccessToken,
+    RefreshToken
+}
+
 #[derive(serde::Serialize)]
 #[derive(Debug)]
 pub struct AccessTokenResponse {
@@ -213,15 +223,17 @@ impl<T> From<(T, Option<String>)> for WithState<T> {
 #[derive(Debug, Clone)]
 #[derive(serde::Serialize)]
 #[serde(rename_all = "snake_case")]
-pub struct AuthorizationError {
+pub struct ErrorResponse<K> {
     #[serde(rename = "error")]
-    pub kind: AuthorizationErrorKind,
+    pub kind: K,
     #[serde(rename = "error_description")]
     pub description: Option<String>,
     #[serde(rename = "error_uri")]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub uri: Option<String>,
 }
+
+pub type AuthorizationError = ErrorResponse<AuthorizationErrorKind>;
 
 macro_rules! make_helper {
     ($name: ident, $variant: path) => {
@@ -256,18 +268,7 @@ pub enum AccessTokenErrorKind {
     InvalidScope,
 }
 
-#[derive(Debug, Clone)]
-#[derive(serde::Serialize)]
-#[serde(rename_all = "snake_case")]
-pub struct AccessTokenError {
-    #[serde(rename = "error")]
-    pub kind: AccessTokenErrorKind,
-    #[serde(rename = "error_description")]
-    pub description: Option<String>,
-    #[serde(rename = "error_uri")]
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub uri: Option<String>,
-}
+pub type AccessTokenError = ErrorResponse<AccessTokenErrorKind>;
 
 impl From<AccessTokenErrorKind> for AccessTokenError {
     fn from(kind: AccessTokenErrorKind) -> Self {
