@@ -5,6 +5,7 @@ use http_basic_auth::Credential as BasicCredentials;
 use warp::{Filter, Rejection};
 use crate::auth::ClientCredentials;
 use crate::core::types::{ClientId, ClientSecret, BearerToken};
+use crate::provider::error::Error;
 
 use self::error::AuthRejection;
 
@@ -56,7 +57,7 @@ pub fn bearer() -> impl Filter<Extract = (BearerToken,), Error = Rejection> + Cl
         .and_then(|s: String| async move {
 	    let token = match s.split_once("Bearer ") {
 		Some(("", token)) => Ok(token.to_string()),
-		_ => Err(crate::auth::BadRequest::BadToken)
+		_ => Err(Error::Unauthorized)
 	    };
 	    reply::accept(token)
 		.map(|t| BearerToken(t))

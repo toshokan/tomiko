@@ -1,28 +1,22 @@
-use async_trait::async_trait;
 use crate::core::models::{AuthCodeData, Client};
 use crate::core::types::{
-    AuthCode, ChallengeId, ClientId, ClientSecret, Expire, HashedAuthCode, HashedClientSecret, RedirectUri, Scope,
+    ChallengeId, ClientId, ClientSecret, Expire, HashedAuthCode, HashedClientSecret, RedirectUri, Scope,
 };
 
+pub mod authorization;
+pub mod access_token;
+pub mod error;
 pub mod pkce;
 pub mod introspection;
 pub mod revocation;
 
+use error::ErrorResponse;
+pub use authorization::*;
+pub use access_token::*;
+
 use crate::oidc;
 use crate::provider::error::Error;
 use crate::util::random::FromRandom;
-
-#[derive(Debug, Clone)]
-#[derive(serde::Serialize, serde::Deserialize)]
-pub struct AuthorizationCodeRequestExt {
-    #[serde(flatten)]
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub pkce_challenge: Option<pkce::Challenge>,
-    #[serde(flatten)]
-    #[serde(skip_serializing_if = "Option::is_none")]
-    #[serde(deserialize_with = "oidc::AuthorizationCodeGrantAuthorizationRequest::deserialize_skip_default")]
-    pub oidc: Option<oidc::AuthorizationCodeGrantAuthorizationRequest>
-}
 
 
 #[derive(Debug, Clone)]
@@ -32,146 +26,7 @@ pub struct ImplicitRequestExt<O> {
     pub oidc: O
 }
 
-#[derive(Debug, Clone)]
-#[derive(serde::Serialize, serde::Deserialize)]
-pub struct AuthorizationRequestData<E> {
-    pub client_id: ClientId,
-    pub redirect_uri: RedirectUri,
-    pub scope: Scope,
-    pub state: Option<String>,
-    #[serde(flatten)]
-    pub ext: E
-}
 
-#[derive(Debug, Clone)]
-#[derive(serde::Serialize, serde::Deserialize)]
-#[serde(tag = "response_type")]
-pub enum AuthorizationRequest {
-    #[serde(rename = "code")]
-    AuthorizationCode(AuthorizationRequestData<AuthorizationCodeRequestExt>),
-    #[serde(rename = "token")]
-    Implicit(AuthorizationRequestData<ImplicitRequestExt<Option<oidc::ImplicitGrantAuthorizationRequest>>>),
-    #[serde(rename = "id_token token")]
-    ImplicitId(AuthorizationRequestData<ImplicitRequestExt<oidc::ImplicitGrantAuthorizationRequest>>)
-}
-
-impl AuthorizationRequest {
-    pub fn as_parts(&self) -> AuthorizationRequestParts<'_> {
-	use AuthorizationRequest::*;
-	
-	match &self {
-	    AuthorizationCode(AuthorizationRequestData {
-		client_id, redirect_uri, state, scope, ..
-	    }) |
-	    Implicit(AuthorizationRequestData {
-		client_id, redirect_uri, state, scope, ..
-	    }) |
-	    ImplicitId(AuthorizationRequestData {
-		client_id, redirect_uri, state, scope, ..
-	    })=> {
-		AuthorizationRequestParts {
-		    client_id,
-		    redirect_uri,
-		    state,
-		    scope
-		}
-	    }
-	}
-    }
-}
-
-#[derive(Debug, Clone)]
-pub struct AuthorizationRequestParts<'r> {
-    pub client_id: &'r ClientId,
-    pub redirect_uri: &'r RedirectUri,
-    pub state: &'r Option<String>,
-    pub scope: &'r Scope
-}
-
-#[derive(Debug)]
-#[derive(serde::Deserialize)]
-pub struct AuthenticationCodeTokenRequest {
-    pub redirect_uri: RedirectUri,
-    pub code: AuthCode,
-    #[serde(flatten)]
-    pub pkce_verifier: Option<pkce::Verifier>
-}
-
-#[derive(Debug)]
-#[derive(serde::Deserialize)]
-pub struct ClientCredentialsTokenRequest {
-    pub scope: Scope,
-}
-
-#[derive(Debug)]
-#[derive(serde::Deserialize)]
-pub struct RefreshTokenRequest {
-    pub refresh_token: String,
-    pub scope: Option<Scope>
-}
-
-#[derive(Debug)]
-#[derive(serde::Deserialize)]
-#[serde(tag = "grant_type")]
-pub enum TokenRequest {
-    #[serde(rename = "authorization_code")]
-    AuthenticationCode(AuthenticationCodeTokenRequest),
-    #[serde(rename = "client_credentials")]
-    ClientCredentials(ClientCredentialsTokenRequest),
-    #[serde(rename = "refresh_token")]
-    RefreshToken(RefreshTokenRequest)
-}
-
-#[derive(Debug)]
-#[derive(serde::Serialize)]
-#[serde(untagged)]
-pub enum AuthorizationResponse {
-    AuthenticationCode(AuthenticationCodeResponse),
-    Implicit(AccessTokenResponse)
-}
-
-#[derive(Debug)]
-#[derive(serde::Serialize)]
-pub struct AuthenticationCodeResponse {
-    code: AuthCode,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    state: Option<String>,
-}
-
-
-impl AuthenticationCodeResponse {
-    pub fn new(code: AuthCode, state: Option<String>) -> Self {
-        Self { code, state }
-    }
-}
-
-#[derive(Debug)]
-#[derive(serde::Serialize)]
-pub enum TokenType {
-    Bearer
-}
-
-#[derive(Debug)]
-#[derive(serde::Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub enum TokenTypeHint {
-    AccessToken,
-    RefreshToken
-}
-
-#[derive(serde::Serialize)]
-#[derive(Debug)]
-pub struct AccessTokenResponse {
-    pub access_token: String,
-    pub token_type: TokenType,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub refresh_token: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub expires_in: Option<u32>,
-    #[serde(flatten)]
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub oidc: Option<oidc::AccessTokenResponse>
-}
 
 #[derive(Debug, Clone)]
 #[derive(serde::Serialize)]
@@ -187,19 +42,6 @@ pub enum BadRequest {
 pub enum MaybeRedirect<R, D> {
     Redirected(Redirect<R>),
     Direct(D)
-}
-
-#[derive(Debug, Clone)]
-#[derive(serde::Serialize)]
-#[serde(rename_all = "snake_case")]
-pub enum AuthorizationErrorKind {
-    InvalidRequest,
-    UnauthorizedClient,
-    AccessDenied,
-    UnsupportedResponseType,
-    InvalidScope,
-    ServerError,
-    TemporarilyUnavailable,
 }
 
 #[derive(Debug, Clone)]
@@ -220,65 +62,7 @@ impl<T> From<(T, Option<String>)> for WithState<T> {
     }
 }
 
-#[derive(Debug, Clone)]
-#[derive(serde::Serialize)]
-#[serde(rename_all = "snake_case")]
-pub struct ErrorResponse<K> {
-    #[serde(rename = "error")]
-    pub kind: K,
-    #[serde(rename = "error_description")]
-    pub description: Option<String>,
-    #[serde(rename = "error_uri")]
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub uri: Option<String>,
-}
 
-pub type AuthorizationError = ErrorResponse<AuthorizationErrorKind>;
-
-macro_rules! make_helper {
-    ($name: ident, $variant: path) => {
-        pub fn $name() -> Self {
-            Self {
-                kind: $variant,
-                description: None,
-                uri: None,
-            }
-        }
-    };
-}
-
-impl AuthorizationError {
-    make_helper!(server_error, AuthorizationErrorKind::ServerError);
-    make_helper!(access_denied, AuthorizationErrorKind::AccessDenied);
-    make_helper!(
-        unauthorized_client,
-        AuthorizationErrorKind::UnauthorizedClient
-    );
-}
-
-#[derive(Debug, Clone)]
-#[derive(serde::Serialize)]
-#[serde(rename_all = "snake_case")]
-pub enum AccessTokenErrorKind {
-    InvalidRequest,
-    InvalidClient,
-    InvalidGrant,
-    UnauthorizedClient,
-    UnsupportedGrantType,
-    InvalidScope,
-}
-
-pub type AccessTokenError = ErrorResponse<AccessTokenErrorKind>;
-
-impl From<AccessTokenErrorKind> for AccessTokenError {
-    fn from(kind: AccessTokenErrorKind) -> Self {
-        Self {
-            kind,
-            description: None,
-            uri: None,
-        }
-    }
-}
 
 #[derive(Debug)]
 #[derive(serde::Deserialize)]
@@ -422,23 +206,4 @@ pub trait Store {
     fn get_challenge_data(&self, id: &ChallengeId) -> Result<Option<ChallengeData>, Error>;
     fn delete_challenge_data(&self, id: &ChallengeId) -> Result<(), Error>;
     fn update_challenge_data(&self, info: ChallengeData) -> Result<ChallengeData, Error>;
-}
-
-#[async_trait]
-pub trait Provider {
-    async fn authorization_request(
-        &self,
-        req: AuthorizationRequest,
-    ) -> Result<MaybeChallenge<Redirect<AuthorizationResponse>>, AuthorizationError>;
-    async fn access_token_request(
-        &self,
-        credentials: ClientCredentials,
-        req: TokenRequest,
-    ) -> Result<AccessTokenResponse, AccessTokenError>;
-    async fn get_challenge_info(&self, id: ChallengeId) -> Option<ChallengeData>;
-    async fn update_challenge_info_request(
-        &self,
-        id: ChallengeId,
-        req: UpdateChallengeDataRequest,
-    ) -> Result<UpdateChallengeDataResponse, ()>;
 }
