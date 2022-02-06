@@ -39,75 +39,62 @@ impl OAuth2Provider {
                     pkce::verify(&challenge, req.pkce_verifier.as_ref())?;
                 }
 
-                if &data.req.redirect_uri == &req.redirect_uri
-                    && &data.req.client_id == &credentials.client_id
+                if &data.req.redirect_uri != &req.redirect_uri
+                    || &data.req.client_id != &credentials.client_id
                 {
-                    let access_token =
-                        self.token
-                            .new_token(&client.id, &data.subject, &data.req.scope);
-                    let token_type = TokenService::token_type();
-
-                    let oidc = if data.req.scope.has_openid() || data.req.ext.oidc.is_some() {
-                        event!(Level::DEBUG, "Processing OpenID Connect extension data");
-                        let nonce = data
-                            .req
-                            .ext
-                            .oidc
-                            .as_ref()
-                            .map(|o| o.nonce.clone())
-                            .flatten();
-                        Some(crate::oidc::AccessTokenResponse {
-                            id_token: self.token.new_id_token(
-                                &client.id,
-                                &data.subject,
-                                nonce.as_ref(),
-                            ),
-                        })
-                    } else {
-                        None
-                    };
-
-                    let refresh_token = if data.req.scope.has_refresh() {
-                        let seed = PersistentSeed {
-                            id: PersistentSeedId::from_random(),
-                            client_id: client.id.clone(),
-                            subject: data.subject.clone(),
-                            auth_data: AuthorizationData {
-                                scope: data.req.scope.clone(),
-                                ext: AuthorizationDataExt {
-                                    oidc: data.req.ext.oidc,
-                                },
-                            },
-                        };
-                        event!(
-                            Level::DEBUG,
-                            "t/ps" = ?seed.id,
-                            "sub" = ?seed.subject,
-                            "Generating persistent seed"
-                        );
-                        self.store
-                            .store_persistent_seed(&seed)
-                            .map_err(|_| AccessTokenErrorKind::InvalidRequest)?;
-
-                        let (token, data) = self.token.new_refresh_token(&seed);
-                        self.store
-                            .put_refresh_token(data)
-                            .map_err(|_| AccessTokenErrorKind::InvalidGrant)?;
-                        Some(token)
-                    } else {
-                        None
-                    };
-
-                    Ok(AccessTokenResponse {
-                        access_token,
-                        token_type,
-                        refresh_token,
-                        expires_in: Some(15 * 60),
-                        oidc,
-                    })
-                } else {
-                    Err(AccessTokenErrorKind::InvalidGrant.into())
+                    Err(AccessTokenErrorKind::InvalidGrant)?;
                 }
+
+                let access_token = self
+                    .token
+                    .new_token(&client.id, &data.subject, &data.req.scope);
+                let token_type = TokenService::token_type();
+
+                let oidc = self.handle_auth_code_oidc(
+                    &client.id,
+                    &data.subject,
+                    &data.req.scope,
+                    &data.req.ext.oidc,
+                );
+
+                let refresh_token = if data.req.scope.has_refresh() {
+                    let seed = PersistentSeed {
+                        id: PersistentSeedId::from_random(),
+                        client_id: client.id.clone(),
+                        subject: data.subject.clone(),
+                        auth_data: AuthorizationData {
+                            scope: data.req.scope.clone(),
+                            ext: AuthorizationDataExt {
+                                oidc: data.req.ext.oidc,
+                            },
+                        },
+                    };
+                    event!(
+                        Level::DEBUG,
+                        "t/ps" = ?seed.id,
+                        "sub" = ?seed.subject,
+                        "Generating persistent seed"
+                    );
+                    self.store
+                        .store_persistent_seed(&seed)
+                        .map_err(|_| AccessTokenErrorKind::InvalidRequest)?;
+
+                    let (token, data) = self.token.new_refresh_token(&seed);
+                    self.store
+                        .put_refresh_token(data)
+                        .map_err(|_| AccessTokenErrorKind::InvalidGrant)?;
+                    Some(token)
+                } else {
+                    None
+                };
+
+                Ok(AccessTokenResponse {
+                    access_token,
+                    token_type,
+                    refresh_token,
+                    expires_in: Some(15 * 60),
+                    oidc,
+                })
             }
             ClientCredentials(req) => {
                 event!(Level::TRACE, "Handling client_credentials grant");
@@ -180,26 +167,13 @@ impl OAuth2Provider {
                 let access_token = self.token.new_token(&client.id, &seed.subject, &scope);
                 let token_type = TokenService::token_type();
 
-                let oidc = if scope.has_openid() || seed.auth_data.ext.oidc.is_some() {
-                    event!(Level::DEBUG, "Processing OpenID Connect extension data");
-                    let nonce = seed
-                        .auth_data
-                        .ext
-                        .oidc
-                        .as_ref()
-                        .map(|o| o.nonce.clone())
-                        .flatten();
-                    Some(crate::oidc::AccessTokenResponse {
-                        id_token: self.token.new_id_token(
-                            &client.id,
-                            &seed.subject,
-                            nonce.as_ref(),
-                        ),
-                    })
-                } else {
-                    None
-                };
-
+                let oidc = self.handle_auth_code_oidc(
+                    &client.id,
+                    &seed.subject,
+                    &scope,
+                    &seed.auth_data.ext.oidc,
+                );
+                
                 let refresh_token = if scope.has_refresh() {
                     let (token, data) = self.token.new_refresh_token(&seed);
                     self.store

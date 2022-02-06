@@ -1,4 +1,4 @@
-use super::types::{Display, Prompt};
+use super::types::{Display, Prompt, Nonce};
 
 #[derive(Debug, Clone, Default, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct AuthorizationRequest<N> {
@@ -10,6 +10,22 @@ pub struct AuthorizationRequest<N> {
     id_token_hint: Option<String>,
     login_hint: Option<String>,
     acr_values: Option<String>,
+}
+
+impl AuthorizationRequest<Nonce> {
+    pub fn as_optional_nonce(&self) -> AuthorizationRequest<Option<Nonce>> {
+	let this = self.clone();
+	AuthorizationRequest {
+	    nonce: Some(this.nonce),
+	    display: this.display,
+	    prompt: this.prompt,
+	    max_age: this.max_age,
+	    ui_locales: this.ui_locales,
+	    id_token_hint: this.id_token_hint,
+	    login_hint: this.login_hint,
+	    acr_values: this.acr_values
+	}
+    }
 }
 
 impl<N> AuthorizationRequest<N>

@@ -17,6 +17,7 @@ use crate::{
 
 mod claims;
 pub mod error;
+mod oidc;
 mod token;
 
 pub mod access_token;
