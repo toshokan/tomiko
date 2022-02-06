@@ -1,7 +1,6 @@
 use crate::auth::{ClientCredentials, UpdateChallengeDataRequest};
 use crate::core::models::{Consent, ConsentId};
 use crate::core::types::{BearerToken, ChallengeId, ClientId};
-use crate::provider::error::Error;
 
 use std::sync::Arc;
 use warp::{Filter, Rejection};
@@ -14,27 +13,6 @@ use crate::provider::OAuth2Provider;
 
 pub trait PeekOwned<T> {
     fn peek(&self) -> T;
-}
-
-pub fn validate_client<'p, T, F>(filter: F) -> impl Filter<Extract = ((Arc<OAuth2Provider>, T),), Error = Rejection> + Clone
-where
-    T: PeekOwned<(crate::core::types::ClientId, crate::core::types::RedirectUri)> + Send,
-    F: Filter<Extract = (Arc<OAuth2Provider>, T), Error = Rejection> + Clone + Send
-{
-    filter.and_then(|p: Arc<OAuth2Provider>, t: T| async move {
-	let (c, r) = t.peek();
-	match p.validate_client(&c, &r).await {
-	    Ok(_) => Ok((p, t)),
-	    Err(e) => Err(warp::reject::custom(AuthRejection::BadRequest(e)))
-	}
-    })
-}
-
-impl PeekOwned<(crate::core::types::ClientId, crate::core::types::RedirectUri)> for crate::auth::AuthorizationRequest {
-    fn peek(&self) -> (crate::core::types::ClientId, crate::core::types::RedirectUri) {
-	let parts = &self.as_parts();
-	(parts.client_id.clone(), parts.redirect_uri.clone())
-    }
 }
 
 #[derive(Debug)]
@@ -89,8 +67,6 @@ impl Server {
         let authenticate = warp::path("authenticate")
             .and(with_provider.clone())
             .and(warp::filters::query::query())
-            .with(warp::wrap_fn(validate_client))
-            .untuple_one()
             .and_then(|provider: Arc<OAuth2Provider>, req| async move {
                 let result = provider.authorization_request(req).await;
                 reply(result)

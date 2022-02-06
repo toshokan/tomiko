@@ -105,6 +105,11 @@ impl OAuth2Provider {
 	> {
 	let parts = req.as_parts();
         let uri = parts.redirect_uri.clone();
+
+	self.validate_client(parts.client_id, &uri)
+	    .await
+	    .map_err(|_| BadRequest::BadRedirect)
+	    .without_redirect()?;
 	
 	let info = ChallengeData::new(&req);
 	let challenge = self.make_challenge(&info.id);
@@ -131,6 +136,7 @@ impl OAuth2Provider {
     ) -> Result<AccessTokenResponse, AccessTokenError> {
 	event!(Level::TRACE, "Handling access token request");
         let client = self.check_client_authentication(&credentials).await?;
+	
         use TokenRequest::*;
 	
         match req {
