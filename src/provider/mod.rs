@@ -480,7 +480,8 @@ impl OAuth2Provider {
 
 struct TokenService {
     secret: EncodingKey,
-    public: DecodingKey<'static>
+    public: DecodingKey<'static>,
+    issuer_prefix: String,
 }
 
 impl std::fmt::Debug for TokenService {
@@ -490,7 +491,7 @@ impl std::fmt::Debug for TokenService {
 }
 
 impl TokenService {
-    pub fn new(secret_path: &str, public_path: &str) -> Self {
+    pub fn new(secret_path: &str, public_path: &str, issuer_prefix: String) -> Self {
         use std::io::Read;
 
         let secret = {
@@ -511,7 +512,7 @@ impl TokenService {
             DecodingKey::from_ec_pem(&contents).expect("Failed to parse public key").into_static()
 	};
 
-        Self { secret, public }
+        Self { secret, public, issuer_prefix }
     }
 
     pub fn token_type() -> TokenType {
@@ -526,9 +527,13 @@ impl TokenService {
             .expect("Unix Epoch is in the past.")
     }
 
+    fn issuer(&self) -> String {
+	format!("{}::tomiko", &self.issuer_prefix)
+    }
+
     pub fn validate_token(&self, token: &str) -> Result<AccessClaims, Error> {
 	let mut validation = jsonwebtoken::Validation::default();
-	validation.iss = Some("tomiko".to_string());
+	validation.iss = Some(self.issuer());
 	validation.algorithms = vec![jsonwebtoken::Algorithm::ES256];
 	jsonwebtoken::decode::<AccessClaims>(token, &self.public, &validation)
 	    .map(|td| td.claims)
@@ -541,7 +546,7 @@ impl TokenService {
         let expiry = time_now + (15 * 60);
 
 	let claims = AccessClaims {
-	    iss: "tomiko".to_string(),
+	    iss: self.issuer(),
 	    exp: expiry,
 	    aud: client_id.0.to_string(),
 	    sub: subject.to_string(),
@@ -572,7 +577,7 @@ impl TokenService {
 
 	let claims = IdClaims {
             sub: subject.to_string(),
-	    iss: "tomiko".to_string(),
+	    iss: self.issuer(),
 	    aud: client_id.0.to_string(),
 	    exp: expiry,
             iat: time_now,
@@ -611,13 +616,13 @@ async fn tomikod(config: Config) -> Option<()> {
     event!(Level::DEBUG, "Running pending database migrations");
     store.migrate();
     let hasher = HashingService::with_secret_key(config.hash_secret);
-    let token = TokenService::new(&config.jwt_private_key_file, &config.jwt_public_key_file);
+    let token = TokenService::new(&config.jwt_private_key_file, &config.jwt_public_key_file, config.issuer_prefix.clone());
     let provider = Arc::new(OAuth2Provider {
         store,
         hasher,
         token,
 	challenge_base: config.challenge_base,
-	self_base: config.self_base
+	self_base: config.self_base,
     });
 
     let _clean_up = {
@@ -625,6 +630,7 @@ async fn tomikod(config: Config) -> Option<()> {
         tokio::spawn(async move { provider.start_clean_up_worker().await });
     };
 
+    event!(Level::INFO, issuer = %config.issuer_prefix);
     event!(Level::DEBUG, "Starting HTTP server");
     let server = Server::new(provider);
     server.serve().await;
@@ -638,7 +644,8 @@ pub struct Config {
     jwt_private_key_file: String,
     jwt_public_key_file: String,
     challenge_base: String,
-    self_base: String
+    self_base: String,
+    issuer_prefix: String
 }
 
 #[derive(Debug)]
@@ -681,6 +688,8 @@ impl Config {
                 .expect("Supply CHALLENGE_HTTP_BASE"),
 	    self_base: std::env::var("SELF_HTTP_BASE")
                 .expect("Supply SELF_HTTP_BASE"),
+	    issuer_prefix: std::env::var("ISSUER_PREFIX")
+		.expect("Supply ISSUER_PREFIX")
         }
     }
 }
