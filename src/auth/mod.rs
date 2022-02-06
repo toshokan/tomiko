@@ -5,6 +5,7 @@ use crate::core::types::{
 };
 
 pub mod pkce;
+pub mod introspection;
 use crate::oidc;
 use crate::provider::error::Error;
 use crate::util::random::FromRandom;

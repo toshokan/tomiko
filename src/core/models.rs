@@ -55,15 +55,6 @@ pub struct AuthorizationData {
     pub scope: Scope
 }
 
-#[derive(Debug)]
-#[derive(serde::Serialize, serde::Deserialize)]
-pub struct RefreshClaims {
-    #[serde(rename = "t/ps")]
-    pub tps: PersistentSeedId,
-    pub jti: RefreshTokenId,
-    pub iat: u64
-}
-
 impl Scope {
     pub fn has_refresh(&self) -> bool {
 	self.contains("offline_access")

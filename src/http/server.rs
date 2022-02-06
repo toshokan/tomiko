@@ -102,6 +102,15 @@ impl Server {
 		json_encode(result)
             });
 
+	let introspection_request = warp::path("introspect")
+	    .and(warp::post())
+	    .and(with_provider.clone())
+	    .and(body_with_credentials())
+	    .and_then(|provider: Arc<OAuth2Provider>, (credentials, req)| async move {
+		let result = provider.introspection_request(credentials, req).await;
+		json_encode(result)
+	    });
+
         let challenge_data = warp::path!("info" / ChallengeId)
             .and(warp::get())
             .and(with_provider.clone())
@@ -210,6 +219,7 @@ impl Server {
 		    .and(
 			authenticate
 			    .or(token_request)
+			    .or(introspection_request)
 		    ))
 	    .or(
 		challenge
