@@ -5,8 +5,8 @@ use crate::util::hash::HashingService;
 use clap::Parser;
 use diesel::PgConnection;
 
-use crate::db::schema;
 use crate::db::models;
+use crate::db::schema;
 
 use diesel::prelude::*;
 
@@ -84,8 +84,7 @@ struct DeleteClientScope {
 }
 
 fn get_database(uri: &str) -> PgConnection {
-    PgConnection::establish(uri)
-	.expect("Failed to connect to database")
+    PgConnection::establish(uri).expect("Failed to connect to database")
 }
 
 fn get_hasher(secret: &str) -> HashingService {
@@ -104,90 +103,82 @@ fn create_client(c: &CreateClient, opts: &Options) {
         .0;
 
     let model = models::Client {
-	client_id: c.id.to_string(),
-	name: c.name.to_string(),
-	secret_hash
+        client_id: c.id.to_string(),
+        name: c.name.to_string(),
+        secret_hash,
     };
 
     diesel::insert_into(clients)
-	.values(model)
-	.execute(&db)
-	.expect("Failed to add client");
+        .values(model)
+        .execute(&db)
+        .expect("Failed to add client");
 }
 
 fn delete_client(c: &DeleteClient, opts: &Options) {
     use schema::clients::dsl::clients;
-    
+
     let db = get_database(&opts.database_url);
 
-    diesel::delete(
-	clients.find(&c.id)
-    )
-	.execute(&db)
-	.expect("Failed to delete client");
+    diesel::delete(clients.find(&c.id))
+        .execute(&db)
+        .expect("Failed to delete client");
 }
 
 fn add_client_uri(c: &AddClientUri, opts: &Options) {
     use schema::uris::dsl::uris;
-    
+
     let db = get_database(&opts.database_url);
 
     let model = models::Uri {
         client_id: c.id.to_string(),
-        uri: c.uri.to_string()
+        uri: c.uri.to_string(),
     };
 
     diesel::insert_into(uris)
-	.values(model)
-	.execute(&db)
-	.expect("Failed to add uri");
+        .values(model)
+        .execute(&db)
+        .expect("Failed to add uri");
 }
 
 fn delete_client_uri(c: &DeleteClientUri, opts: &Options) {
     use schema::uris::dsl::uris;
-    
+
     let db = get_database(&opts.database_url);
 
-    diesel::delete(
-	uris.find((&c.id, &c.uri))
-    )
-	.execute(&db)
-	.expect("Failed to delete uri");
+    diesel::delete(uris.find((&c.id, &c.uri)))
+        .execute(&db)
+        .expect("Failed to delete uri");
 }
 
 fn add_client_scope(c: &AddClientScope, opts: &Options) {
     use schema::client_scopes::dsl::client_scopes;
-    
+
     let db = get_database(&opts.database_url);
-    let scopes = Scope::from_delimited_parts(&c.scope)
-	.as_parts();
+    let scopes = Scope::from_delimited_parts(&c.scope).as_parts();
 
     for scope in scopes {
-	let model = models::ClientScope {
+        let model = models::ClientScope {
             client_id: c.id.to_string(),
-            scope: scope.to_string()
-	};
+            scope: scope.to_string(),
+        };
 
-	diesel::insert_into(client_scopes)
-	    .values(model)
-	    .execute(&db)
-	    .expect("Failed to add client scope");
+        diesel::insert_into(client_scopes)
+            .values(model)
+            .execute(&db)
+            .expect("Failed to add client scope");
     }
 }
 
 fn delete_client_scope(c: &DeleteClientScope, opts: &Options) {
     use schema::client_scopes::dsl::client_scopes;
-    
+
     let db = get_database(&opts.database_url);
-    let scopes = Scope::from_delimited_parts(&c.scope)
-	.as_parts();
+    let scopes = Scope::from_delimited_parts(&c.scope).as_parts();
 
     for scope in scopes {
-	diesel::delete(
-	    client_scopes.find((&c.id, scope))
-	)
-	    .execute(&db)
-	    .expect("Failed to delete client scope");
+        diesel::delete(client_scopes.find((&c.id, scope)))
+            .execute(&db)
+            .expect("Failed to delete client scope");
     }
 }
 
@@ -200,6 +191,6 @@ pub fn run_cli_action(opts: Options) {
         AddClientUri(c) => add_client_uri(c, &opts),
         DeleteClientUri(c) => delete_client_uri(c, &opts),
         AddClientScope(c) => add_client_scope(c, &opts),
-        DeleteClientScope(c) => delete_client_scope(c, &opts)
+        DeleteClientScope(c) => delete_client_scope(c, &opts),
     };
 }

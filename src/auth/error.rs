@@ -1,5 +1,4 @@
-#[derive(Debug, Clone)]
-#[derive(serde::Serialize)]
+#[derive(Debug, Clone, serde::Serialize)]
 #[serde(rename_all = "snake_case")]
 pub struct ErrorResponse<K> {
     #[serde(rename = "error")]
@@ -11,8 +10,7 @@ pub struct ErrorResponse<K> {
     pub uri: Option<String>,
 }
 
-#[derive(Debug, Clone)]
-#[derive(serde::Serialize)]
+#[derive(Debug, Clone, serde::Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum ErrorKind {
     InvalidRequest,
@@ -20,22 +18,19 @@ pub enum ErrorKind {
     InvalidScope,
 }
 
-#[derive(Debug, Clone)]
-#[derive(serde::Serialize)]
+#[derive(Debug, Clone, serde::Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum ErrorKindExt {
     ServerError,
-    TemporarilyUnavailable
+    TemporarilyUnavailable,
 }
 
-
-#[derive(Debug, Clone)]
-#[derive(serde::Serialize)]
+#[derive(Debug, Clone, serde::Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum AccessTokenErrorKind {
     Base(ErrorKind),
     Ext(ErrorKindExt),
     InvalidClient,
     InvalidGrant,
-    UnsuportedGrantType
+    UnsuportedGrantType,
 }

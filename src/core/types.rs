@@ -1,9 +1,12 @@
-use std::{collections::HashSet, time::{Duration, SystemTime}, str::FromStr};
+use std::{
+    collections::HashSet,
+    str::FromStr,
+    time::{Duration, SystemTime},
+};
 
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
-#[derive(Debug)]
-#[derive(serde::Deserialize)]
+#[derive(Debug, serde::Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum GrantType {
     AuthorizationCode,
@@ -14,7 +17,7 @@ pub struct Scope(HashSet<String>);
 
 impl Scope {
     pub fn from_parts(mut parts: Vec<String>) -> Self {
-	let set = parts.drain(..).collect();
+        let set = parts.drain(..).collect();
         Self(set)
     }
 
@@ -24,11 +27,15 @@ impl Scope {
     }
 
     pub fn as_joined(&self) -> String {
-        self.0.iter().map(AsRef::as_ref).collect::<Vec<&str>>().join(" ")
+        self.0
+            .iter()
+            .map(AsRef::as_ref)
+            .collect::<Vec<&str>>()
+            .join(" ")
     }
 
     pub fn contains(&self, scope: &str) -> bool {
-	self.0.contains(scope)
+        self.0.contains(scope)
     }
 
     pub fn as_parts(&self) -> Vec<String> {
@@ -36,21 +43,25 @@ impl Scope {
     }
 
     pub fn contains_all(&self, other: &Scope) -> bool {
-	self.0.is_superset(&other.0)
+        self.0.is_superset(&other.0)
     }
 
     pub fn trim_privileged(&mut self) {
-	self.0 = self.0.drain().filter(|s| !s.starts_with("tomiko::")).collect()
+        self.0 = self
+            .0
+            .drain()
+            .filter(|s| !s.starts_with("tomiko::"))
+            .collect()
     }
 }
 
 impl PartialEq for Scope {
     fn eq(&self, other: &Self) -> bool {
-	let mut lhs = self.as_parts();
-	let mut rhs = other.as_parts();
-	lhs.sort();
-	rhs.sort();
-	lhs == rhs
+        let mut lhs = self.as_parts();
+        let mut rhs = other.as_parts();
+        lhs.sort();
+        rhs.sort();
+        lhs == rhs
     }
 }
 
@@ -74,41 +85,36 @@ impl Serialize for Scope {
     }
 }
 
-#[derive(Debug)]
-#[derive(serde::Deserialize)]
+#[derive(Debug, serde::Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum ResponseType {
     Code,
 }
 
-#[derive(Clone, Debug, Eq, Hash, PartialEq)]
-#[derive(serde::Deserialize)]
-#[derive(serde::Serialize)]
+#[derive(Clone, Debug, Eq, Hash, PartialEq, serde::Deserialize, serde::Serialize)]
 #[serde(transparent)]
 pub struct ClientId(pub String); // TODO
 
 impl FromStr for ClientId {
     type Err = std::convert::Infallible;
-    
+
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-	Ok(Self(s.to_string()))
+        Ok(Self(s.to_string()))
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
-#[derive(serde::Deserialize, serde::Serialize)]
+#[derive(Clone, Debug, PartialEq, Eq, serde::Deserialize, serde::Serialize)]
 #[serde(rename_all = "snake_case")]
 #[serde(transparent)]
 pub struct RedirectUri(pub String); // TODO
 
-#[derive(Debug)]
-#[derive(serde::Deserialize)]
+#[derive(Debug, serde::Deserialize)]
 #[serde(transparent)]
 pub struct ClientSecret(pub String); // TODO
 
 impl AsRef<str> for ClientSecret {
     fn as_ref(&self) -> &str {
-	&self.0
+        &self.0
     }
 }
 
@@ -123,23 +129,22 @@ impl HashedClientSecret {
 
 impl From<String> for HashedClientSecret {
     fn from(s: String) -> Self {
-	Self(s)
+        Self(s)
     }
 }
 
 impl AsRef<str> for HashedClientSecret {
     fn as_ref(&self) -> &str {
-	&self.0
+        &self.0
     }
 }
 
-#[derive(Debug, Clone)]
-#[derive(serde::Deserialize, serde::Serialize)]
+#[derive(Debug, Clone, serde::Deserialize, serde::Serialize)]
 #[serde(transparent)]
 pub struct AuthCode(pub String); // TODO
 impl AsRef<str> for AuthCode {
     fn as_ref(&self) -> &str {
-	&self.0
+        &self.0
     }
 }
 
@@ -147,13 +152,11 @@ impl AsRef<str> for AuthCode {
 pub struct HashedAuthCode(pub String);
 impl From<String> for HashedAuthCode {
     fn from(from: String) -> Self {
-	Self(from)
+        Self(from)
     }
 }
 
-
-#[derive(Debug, Clone)]
-#[derive(serde::Deserialize, serde::Serialize)]
+#[derive(Debug, Clone, serde::Deserialize, serde::Serialize)]
 #[serde(transparent)]
 pub struct ChallengeId(pub String);
 
@@ -171,9 +174,9 @@ pub struct Expiry(SystemTime);
 
 impl Into<i64> for Expiry {
     fn into(self) -> i64 {
-	use std::convert::TryInto;
-	
-	self.0
+        use std::convert::TryInto;
+
+        self.0
             .duration_since(SystemTime::UNIX_EPOCH)
             .unwrap_or(Duration::from_secs(0))
             .as_secs()
@@ -186,14 +189,13 @@ pub trait Expire {
     const EXPIRES_IN_SECS: u64;
 
     fn expiry() -> Expiry {
-	let time = SystemTime::now()
-	    .checked_add(Duration::from_secs(Self::EXPIRES_IN_SECS))
-	    .unwrap_or(SystemTime::now());
-	Expiry(time)
+        let time = SystemTime::now()
+            .checked_add(Duration::from_secs(Self::EXPIRES_IN_SECS))
+            .unwrap_or(SystemTime::now());
+        Expiry(time)
     }
 }
 
-#[derive(Debug, Clone)]
-#[derive(serde::Deserialize, serde::Serialize)]
+#[derive(Debug, Clone, serde::Deserialize, serde::Serialize)]
 #[serde(transparent)]
 pub struct TokenId(pub String);

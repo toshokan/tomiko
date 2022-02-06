@@ -1,5 +1,5 @@
-pub(crate) mod schema;
-pub(crate) mod models;
 mod diesel;
+pub(crate) mod models;
+pub(crate) mod schema;
 
 pub use self::diesel::*;

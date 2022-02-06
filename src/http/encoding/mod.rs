@@ -1,11 +1,11 @@
 pub mod error;
 pub mod reply;
 
+use crate::auth::ClientCredentials;
+use crate::core::types::{BearerToken, ClientId, ClientSecret};
+use crate::provider::error::Error;
 use http_basic_auth::Credential as BasicCredentials;
 use warp::{Filter, Rejection};
-use crate::auth::ClientCredentials;
-use crate::core::types::{ClientId, ClientSecret, BearerToken};
-use crate::provider::error::Error;
 
 use self::error::AuthRejection;
 
@@ -46,20 +46,16 @@ pub fn body_with_credentials<T: serde::de::DeserializeOwned + Send>(
     basic
         .or(body)
         .unify()
-	.or_else(|_| async move {
-	    Err(warp::reject::custom(AuthRejection::Unauthorized))
-	})
+        .or_else(|_| async move { Err(warp::reject::custom(AuthRejection::Unauthorized)) })
         .map(|w: WithCredentials<T>| w.split())
 }
 
 pub fn bearer() -> impl Filter<Extract = (BearerToken,), Error = Rejection> + Clone {
-    warp::header("Authorization")
-        .and_then(|s: String| async move {
-	    let token = match s.split_once("Bearer ") {
-		Some(("", token)) => Ok(token.to_string()),
-		_ => Err(Error::Unauthorized)
-	    };
-	    reply::accept(token)
-		.map(|t| BearerToken(t))
-	})
+    warp::header("Authorization").and_then(|s: String| async move {
+        let token = match s.split_once("Bearer ") {
+            Some(("", token)) => Ok(token.to_string()),
+            _ => Err(Error::Unauthorized),
+        };
+        reply::accept(token).map(|t| BearerToken(t))
+    })
 }

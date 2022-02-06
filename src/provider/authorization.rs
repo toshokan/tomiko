@@ -1,4 +1,11 @@
-use crate::{auth::{AuthorizationRequest, MaybeChallenge, Redirect, AuthorizationResponse, AuthorizationError, ChallengeData, AuthorizationRedirectErrorKind, AuthorizationErrorKind, Store}, provider::error::ResultExt};
+use crate::{
+    auth::{
+        AuthorizationError, AuthorizationErrorKind, AuthorizationRedirectErrorKind,
+        AuthorizationRequest, AuthorizationResponse, ChallengeData, MaybeChallenge, Redirect,
+        Store,
+    },
+    provider::error::ResultExt,
+};
 
 use tracing::{event, Level};
 
@@ -10,29 +17,29 @@ impl OAuth2Provider {
         &self,
         req: AuthorizationRequest,
     ) -> Result<MaybeChallenge<Redirect<AuthorizationResponse>>, AuthorizationError> {
-	
-	let parts = req.as_parts();
+        let parts = req.as_parts();
         let uri = parts.redirect_uri.clone();
 
-	self.validate_client(parts.client_id, &uri)
-	    .await
-	    .map_err(|_| AuthorizationRedirectErrorKind::BadRedirect)
-	    .without_redirect()?;
-	
-	let info = ChallengeData::new(&req);
-	let challenge = self.make_challenge(&info.id);
+        self.validate_client(parts.client_id, &uri)
+            .await
+            .map_err(|_| AuthorizationRedirectErrorKind::BadRedirect)
+            .without_redirect()?;
 
-	self.store.store_challenge_data(info)
-	    .map_err(|_| AuthorizationErrorKind::ServerError.into())
-	    .add_state_context(&parts.state)
-	    .add_redirect_context(uri)?;
+        let info = ChallengeData::new(&req);
+        let challenge = self.make_challenge(&info.id);
 
-	event!(
-	    Level::DEBUG,
-	    client_id = ?parts.client_id,
-	    challenge_id = ?challenge.id,
-	    "Issuing authorization challenge"
-	);
+        self.store
+            .store_challenge_data(info)
+            .map_err(|_| AuthorizationErrorKind::ServerError.into())
+            .add_state_context(&parts.state)
+            .add_redirect_context(uri)?;
+
+        event!(
+            Level::DEBUG,
+            client_id = ?parts.client_id,
+            challenge_id = ?challenge.id,
+            "Issuing authorization challenge"
+        );
         Ok(MaybeChallenge::Challenge(challenge))
     }
 }

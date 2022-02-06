@@ -44,16 +44,16 @@ pub fn form_encode(
 }
 
 pub fn json_encode(
-    value: Result<impl serde::Serialize, impl Into<AuthRejection>>
+    value: Result<impl serde::Serialize, impl Into<AuthRejection>>,
 ) -> Result<impl Reply, Rejection> {
     value
         .map(|v| warp::reply::json(&v))
-	.map_err(|e| warp::reject::custom::<AuthRejection>(e.into()))
+        .map_err(|e| warp::reject::custom::<AuthRejection>(e.into()))
 }
 
 pub fn accept<T, E>(result: Result<T, E>) -> Result<T, Rejection>
 where
-    E: Into<AuthRejection>
+    E: Into<AuthRejection>,
 {
     result.map_err(|e| warp::reject::custom(e.into()))
 }

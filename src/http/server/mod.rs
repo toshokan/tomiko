@@ -6,10 +6,8 @@ use crate::provider::OAuth2Provider;
 mod endpoints;
 
 use endpoints::{
+    challenge::challenge_endpoint, client::client_endpoint, consent::consent_endpoint,
     oauth::oauth_endpoint,
-    challenge::challenge_endpoint,
-    consent::consent_endpoint,
-    client::client_endpoint
 };
 
 use super::encoding::error::handle_reject;
@@ -29,29 +27,23 @@ impl Server {
     pub async fn serve(self) -> Option<()> {
         let provider = self.provider;
 
-        let oauth = warp::path("oauth")
-	    .and(oauth_endpoint(provider.clone()));
-	
-	let challenge = warp::path("challenge")
-	    .and(challenge_endpoint(provider.clone()));
-	
-	let consent = warp::path("consent")
-	    .and(consent_endpoint(provider.clone()));
+        let oauth = warp::path("oauth").and(oauth_endpoint(provider.clone()));
 
-	let client = warp::path("client")
-	    .and(client_endpoint(provider.clone()));
+        let challenge = warp::path("challenge").and(challenge_endpoint(provider.clone()));
 
+        let consent = warp::path("consent").and(consent_endpoint(provider.clone()));
 
-	let cors = warp::cors()
-	    .allow_any_origin();
+        let client = warp::path("client").and(client_endpoint(provider.clone()));
 
-	let routes = oauth
-	    .or(challenge)
-	    .or(consent)
-	    .or(client)
-	    .recover(handle_reject)
-	    .with(warp::log("http-api"))
-	    .with(cors);
+        let cors = warp::cors().allow_any_origin();
+
+        let routes = oauth
+            .or(challenge)
+            .or(consent)
+            .or(client)
+            .recover(handle_reject)
+            .with(warp::log("http-api"))
+            .with(cors);
 
         warp::serve(routes).run(([0, 0, 0, 0], 8001)).await;
 

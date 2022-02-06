@@ -1,6 +1,9 @@
-use crate::{auth::{
-    AccessTokenError, AuthorizationError, MaybeRedirect, Redirect, AuthorizationErrorResponse,
-}, provider::error::Error};
+use crate::{
+    auth::{
+        AccessTokenError, AuthorizationError, AuthorizationErrorResponse, MaybeRedirect, Redirect,
+    },
+    provider::error::Error,
+};
 use warp::{Rejection, Reply};
 
 #[derive(Debug, Clone)]
@@ -12,20 +15,20 @@ pub enum AuthRejection {
     // BadRequest(BadRequest),
     BadRequest,
     Unauthorized,
-    ServerError
+    ServerError,
 }
 
 impl warp::reject::Reject for AuthRejection {}
 
 impl From<Error> for AuthRejection {
     fn from(e: Error) -> Self {
-	match e {
-	    // TODO
-	    Error::Unauthorized => AuthRejection::Unauthorized,
-	    Error::BadRequest => AuthRejection::BadRequest,
-	    // Error::BadRequest => AuthRejection::BadRequest(BadRequest::ServerError),
-	    _ => AuthRejection::ServerError
-	}
+        match e {
+            // TODO
+            Error::Unauthorized => AuthRejection::Unauthorized,
+            Error::BadRequest => AuthRejection::BadRequest,
+            // Error::BadRequest => AuthRejection::BadRequest(BadRequest::ServerError),
+            _ => AuthRejection::ServerError,
+        }
     }
 }
 
@@ -43,16 +46,17 @@ impl From<Redirect<AuthorizationErrorResponse>> for AuthRejection {
 
 impl From<AuthorizationError> for AuthRejection {
     fn from(error: AuthorizationError) -> Self {
-	use crate::auth::authorization::AuthorizationRedirectErrorKind;
-	
-	match error {
-	    MaybeRedirect::Redirected(r) => Self::from(r),
-	    MaybeRedirect::Direct(AuthorizationRedirectErrorKind::BadRedirect) => Self::BadRedirect,
-	    MaybeRedirect::Direct(AuthorizationRedirectErrorKind::BadChallenge) => Self::BadChallenge
-	}
+        use crate::auth::authorization::AuthorizationRedirectErrorKind;
+
+        match error {
+            MaybeRedirect::Redirected(r) => Self::from(r),
+            MaybeRedirect::Direct(AuthorizationRedirectErrorKind::BadRedirect) => Self::BadRedirect,
+            MaybeRedirect::Direct(AuthorizationRedirectErrorKind::BadChallenge) => {
+                Self::BadChallenge
+            }
+        }
     }
 }
-
 
 impl From<AccessTokenError> for AuthRejection {
     fn from(error: AccessTokenError) -> Self {
@@ -62,7 +66,7 @@ impl From<AccessTokenError> for AuthRejection {
 
 pub async fn handle_reject(err: Rejection) -> Result<impl Reply, Rejection> {
     use warp::{http::StatusCode, reply::with_status};
-    
+
     match err.find::<AuthRejection>() {
         Some(e) => {
             let e = e.clone();

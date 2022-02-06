@@ -4,12 +4,10 @@ extern crate diesel;
 #[macro_use]
 extern crate diesel_migrations;
 
-pub mod core;
 pub mod auth;
-pub mod http;
+pub mod core;
 pub mod db;
-pub mod util;
+pub mod http;
 pub mod oidc;
 pub mod provider;
-
-
+pub mod util;

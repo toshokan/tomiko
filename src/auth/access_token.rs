@@ -1,26 +1,23 @@
-use crate::auth::{pkce, oidc};
-use crate::core::types::{Scope, RedirectUri, AuthCode};
+use crate::auth::{oidc, pkce};
+use crate::core::types::{AuthCode, RedirectUri, Scope};
 
 use super::error::ErrorResponse;
 
 pub type AccessTokenError = ErrorResponse<AccessTokenErrorKind>;
 
-#[derive(Debug)]
-#[derive(serde::Serialize)]
+#[derive(Debug, serde::Serialize)]
 pub enum TokenType {
-    Bearer
+    Bearer,
 }
 
-#[derive(Debug)]
-#[derive(serde::Deserialize)]
+#[derive(Debug, serde::Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum TokenTypeHint {
     AccessToken,
-    RefreshToken
+    RefreshToken,
 }
 
-#[derive(Debug)]
-#[derive(serde::Deserialize)]
+#[derive(Debug, serde::Deserialize)]
 #[serde(tag = "grant_type")]
 pub enum TokenRequest {
     #[serde(rename = "authorization_code")]
@@ -28,33 +25,29 @@ pub enum TokenRequest {
     #[serde(rename = "client_credentials")]
     ClientCredentials(ClientCredentialsTokenRequest),
     #[serde(rename = "refresh_token")]
-    RefreshToken(RefreshTokenRequest)
+    RefreshToken(RefreshTokenRequest),
 }
 
-#[derive(Debug)]
-#[derive(serde::Deserialize)]
+#[derive(Debug, serde::Deserialize)]
 pub struct AuthenticationCodeTokenRequest {
     pub redirect_uri: RedirectUri,
     pub code: AuthCode,
     #[serde(flatten)]
-    pub pkce_verifier: Option<pkce::Verifier>
+    pub pkce_verifier: Option<pkce::Verifier>,
 }
 
-#[derive(Debug)]
-#[derive(serde::Deserialize)]
+#[derive(Debug, serde::Deserialize)]
 pub struct ClientCredentialsTokenRequest {
     pub scope: Scope,
 }
 
-#[derive(Debug)]
-#[derive(serde::Deserialize)]
+#[derive(Debug, serde::Deserialize)]
 pub struct RefreshTokenRequest {
     pub refresh_token: String,
-    pub scope: Option<Scope>
+    pub scope: Option<Scope>,
 }
 
-#[derive(serde::Serialize)]
-#[derive(Debug)]
+#[derive(serde::Serialize, Debug)]
 pub struct AccessTokenResponse {
     pub access_token: String,
     pub token_type: TokenType,
@@ -64,11 +57,10 @@ pub struct AccessTokenResponse {
     pub expires_in: Option<u32>,
     #[serde(flatten)]
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub oidc: Option<oidc::AccessTokenResponse>
+    pub oidc: Option<oidc::AccessTokenResponse>,
 }
 
-#[derive(Debug, Clone)]
-#[derive(serde::Serialize)]
+#[derive(Debug, Clone, serde::Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum AccessTokenErrorKind {
     InvalidRequest,
