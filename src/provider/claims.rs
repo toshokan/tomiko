@@ -35,5 +35,6 @@ pub struct RefreshClaims {
     #[serde(rename = "t/ps")]
     pub tps: PersistentSeedId,
     pub jti: RefreshTokenId,
-    pub iat: u64
+    pub iat: u64,
+    pub iss: String
 }

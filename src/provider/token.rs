@@ -1,5 +1,5 @@
 use crate::auth::TokenType;
-use crate::core::models::{RefreshTokenId, PersistentSeed};
+use crate::core::models::{RefreshTokenId, PersistentSeed, RefreshTokenData};
 use crate::core::types::{ClientId, TokenId, Scope, BearerToken};
 use crate::oidc::types::Nonce;
 use crate::provider::{
@@ -74,6 +74,16 @@ impl TokenService {
 	    .map_err(|_| Error::Unauthorized)
     }
 
+    pub fn validate_refresh_token(&self, token: &str) -> Result<RefreshClaims, Error> {
+	let mut validation = jsonwebtoken::Validation::default();
+	validation.iss = Some(self.issuer());
+	validation.validate_exp = false;
+	validation.algorithms = vec![jsonwebtoken::Algorithm::ES256];
+	jsonwebtoken::decode::<RefreshClaims>(token, &self.public, &validation)
+	    .map(|td| td.claims)
+	    .map_err(|_| Error::Unauthorized)
+    }
+
     #[tracing::instrument(skip(self, scope), fields(scope = %scope.as_joined()))]
     pub fn new_token(&self, client_id: &ClientId, subject: &str, scope: &Scope) -> String {
         let time_now = Self::current_timestamp().as_secs();
@@ -127,14 +137,21 @@ impl TokenService {
     }
 
     #[tracing::instrument(skip_all)]
-    pub fn new_refresh_token(&self, seed: &PersistentSeed) -> String {
+    pub fn new_refresh_token(&self, seed: &PersistentSeed) -> (String, RefreshTokenData) {
 	let time_now = Self::current_timestamp().as_secs();
-        let expiry = time_now + (24 * 60 * 60);
+
+	let jti = RefreshTokenId::from_random();
 
 	let claims = RefreshClaims {
+	    iss: self.issuer(),
 	    tps: seed.id.clone(),
-	    jti: RefreshTokenId::from_random(),
-	    iat: expiry
+	    jti: jti.clone(),
+	    iat: time_now
+	};
+
+	let record = RefreshTokenData {
+	    id: jti,
+	    seed: seed.id.clone(),
 	};
 
 	event!(
@@ -142,7 +159,7 @@ impl TokenService {
 	    "t/ps" = ?seed.id,
 	    "Issuing refresh token"
 	);
-	self.make_token(claims)
+	(self.make_token(claims), record)
     }
 
     pub fn validate_token_contains(&self, token: BearerToken, scope_entry: &str) -> Result<(), Error> {

@@ -1,4 +1,4 @@
-use crate::{auth::{AuthorizationRequestData, Challenge, ChallengeInfo, MaybeChallenge::{self, *}, pkce}, core::{models::{AuthorizationData, Consent, ConsentId, PersistentSeed, PersistentSeedId, ClientInfo}}};
+use crate::{auth::{AuthorizationRequestData, Challenge, ChallengeInfo, MaybeChallenge::{self, *}, pkce}, core::{models::{AuthorizationData, Consent, ConsentId, PersistentSeed, PersistentSeedId, ClientInfo, AuthorizationDataExt}}};
 use crate::core::models::Client;
 use crate::core::types::{BearerToken, ChallengeId, ClientId, RedirectUri};
 use crate::util::{hash::HashingService, random::FromRandom};
@@ -160,7 +160,7 @@ impl OAuth2Provider {
 
 		    let oidc = if data.req.scope.has_openid() || data.req.ext.oidc.is_some() {
 			event!(Level::DEBUG, "Processing OpenID Connect extension data");
-			let nonce = data.req.ext.oidc.map(|o| o.nonce).flatten();
+			let nonce = data.req.ext.oidc.as_ref().map(|o| o.nonce.clone()).flatten();
 			Some(crate::oidc::AccessTokenResponse {
 			    id_token: self.token.new_id_token(&client.id, &data.subject, nonce.as_ref())
 			})
@@ -172,21 +172,26 @@ impl OAuth2Provider {
 			let seed = PersistentSeed {
 			    id: PersistentSeedId::from_random(),
 			    client_id: client.id.clone(),
+			    subject: data.subject.clone(),
 			    auth_data: AuthorizationData {
-				subject: data.subject.clone(),
-				scope: data.req.scope.clone()
+				scope: data.req.scope.clone(),
+				ext: AuthorizationDataExt {
+				    oidc: data.req.ext.oidc
+				}
 			    }
 			};
 			event!(
 			    Level::DEBUG,
 			    "t/ps" = ?seed.id,
-			    "sub" = ?seed.auth_data.subject,
+			    "sub" = ?seed.subject,
 			    "Generating persistent seed"
 			);
 			self.store.store_persistent_seed(&seed)
 			    .map_err(|_| AccessTokenErrorKind::InvalidRequest)?;
 
-			let token = self.token.new_refresh_token(&seed);
+			let (token, data) = self.token.new_refresh_token(&seed);
+			self.store.put_refresh_token(data)
+			    .map_err(|_| AccessTokenErrorKind::InvalidGrant)?;
 			Some(token)
 		    } else {
 			None
@@ -231,7 +236,71 @@ impl OAuth2Provider {
                     expires_in: None,
 		    oidc: None
                 })
-            }
+            },
+	    RefreshToken(req) => {
+		event!(Level::TRACE, "Handling refresh_tokens grant");
+		let claims = self.token.validate_refresh_token(&req.refresh_token)
+		    .map_err(|_| AccessTokenErrorKind::InvalidGrant)?;
+		
+		let seed = self.store.find_refresh_token_seed(&claims.jti)
+		    .map_err(|_| AccessTokenErrorKind::InvalidGrant)?
+		    .ok_or(AccessTokenErrorKind::InvalidGrant)?;
+
+		self.store.invalidate_refresh_token(&claims.jti)
+		    .map_err(|_| AccessTokenErrorKind::InvalidGrant)?;
+
+		if client.id != seed.client_id {
+		    event!(
+			Level::WARN,
+			original_client_id = ?seed.client_id,
+			refresh_client_id = ?client.id,
+			"client_ids do not match"
+		    );
+		    Err(AccessTokenErrorKind::InvalidGrant)?
+		}
+
+		let scope = match req.scope {
+		    Some(scope) => {
+			if seed.auth_data.scope.contains_all(&scope) {
+			    scope
+			} else {
+			    // This scope was not in the original request
+			    Err(AccessTokenErrorKind::InvalidGrant)?
+			}
+		    },
+		    None => seed.auth_data.scope.clone()
+		};
+
+		let access_token = self.token.new_token(&client.id, &seed.subject, &scope);
+                let token_type = TokenService::token_type();
+
+		let oidc = if scope.has_openid() || seed.auth_data.ext.oidc.is_some() {
+		    event!(Level::DEBUG, "Processing OpenID Connect extension data");
+		    let nonce = seed.auth_data.ext.oidc.as_ref().map(|o| o.nonce.clone()).flatten();
+		    Some(crate::oidc::AccessTokenResponse {
+			id_token: self.token.new_id_token(&client.id, &seed.subject, nonce.as_ref())
+		    })
+		} else {
+		    None
+		};
+
+		let refresh_token = if scope.has_refresh() {
+		    let (token, data) = self.token.new_refresh_token(&seed);
+		    self.store.put_refresh_token(data)
+			.map_err(|_| AccessTokenErrorKind::InvalidGrant)?;
+		    Some(token)
+		} else {
+		    None
+		};
+
+		Ok(AccessTokenResponse {
+                        access_token,
+                        token_type,
+                        refresh_token,
+                        expires_in: Some(15 * 60),
+			oidc
+                })
+	    }
         }
     }
 

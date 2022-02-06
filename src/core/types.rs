@@ -35,6 +35,10 @@ impl Scope {
         self.0.iter().cloned().collect()
     }
 
+    pub fn contains_all(&self, other: &Scope) -> bool {
+	self.0.is_superset(&other.0)
+    }
+
     pub fn trim_privileged(&mut self) {
 	self.0 = self.0.drain().filter(|s| !s.starts_with("tomiko::")).collect()
     }

@@ -32,27 +32,44 @@ pub struct RedirectRecord {
 #[serde(transparent)]
 pub struct PersistentSeedId(pub String);
 
+#[derive(Debug)]
 pub struct PersistentSeed {
     pub id: PersistentSeedId,
     pub client_id: ClientId,
+    pub subject: String,
     pub auth_data: AuthorizationData
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 #[derive(serde::Serialize, serde::Deserialize)]
 #[serde(transparent)]
 pub struct RefreshTokenId(pub String);
 
-pub struct RefreshTokenRecord {
+#[derive(Debug)]
+pub struct RefreshTokenData {
     pub id: RefreshTokenId,
     pub seed: PersistentSeedId,
-    pub invalid_after: i64,
 }
 
+impl Expire for RefreshTokenData {
+    const EXPIRES_IN_SECS: u64 = (24 * 60 * 60);
+}
+
+#[derive(Debug)]
 #[derive(serde::Serialize, serde::Deserialize)]
 pub struct AuthorizationData {
-    pub subject: String,
-    pub scope: Scope
+    pub scope: Scope,
+    #[serde(flatten)]
+    pub ext: AuthorizationDataExt
+}
+
+#[derive(Debug)]
+#[derive(serde::Serialize, serde::Deserialize)]
+pub struct AuthorizationDataExt {
+    #[serde(flatten)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(deserialize_with = "crate::oidc::AuthorizationCodeGrantAuthorizationRequest::deserialize_skip_default")]
+    pub oidc: Option<crate::oidc::AuthorizationCodeGrantAuthorizationRequest>
 }
 
 impl Scope {

@@ -1,5 +1,6 @@
 use crate::{auth::{MaybeRedirect, Redirect, WithState}, core::types::RedirectUri};
 
+#[derive(Debug)]
 pub enum Error {
     Unauthorized,
     BadRequest,

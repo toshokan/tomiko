@@ -17,6 +17,7 @@ pub struct AuthorizationCodeRequestExt {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub pkce_challenge: Option<pkce::Challenge>,
     #[serde(flatten)]
+    #[serde(skip_serializing_if = "Option::is_none")]
     #[serde(deserialize_with = "oidc::AuthorizationCodeGrantAuthorizationRequest::deserialize_skip_default")]
     pub oidc: Option<oidc::AuthorizationCodeGrantAuthorizationRequest>
 }
@@ -102,12 +103,21 @@ pub struct ClientCredentialsTokenRequest {
 
 #[derive(Debug)]
 #[derive(serde::Deserialize)]
+pub struct RefreshTokenRequest {
+    pub refresh_token: String,
+    pub scope: Option<Scope>
+}
+
+#[derive(Debug)]
+#[derive(serde::Deserialize)]
 #[serde(tag = "grant_type")]
 pub enum TokenRequest {
     #[serde(rename = "authorization_code")]
     AuthenticationCode(AuthenticationCodeTokenRequest),
     #[serde(rename = "client_credentials")]
     ClientCredentials(ClientCredentialsTokenRequest),
+    #[serde(rename = "refresh_token")]
+    RefreshToken(RefreshTokenRequest)
 }
 
 #[derive(Debug)]

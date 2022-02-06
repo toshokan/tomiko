@@ -1,7 +1,7 @@
 use std::fmt::Debug;
 
 use crate::auth::{ChallengeData, Store};
-use crate::core::models::{AuthCodeData, Client, PersistentSeed, PersistentSeedId, RefreshTokenId, Consent};
+use crate::core::models::{AuthCodeData, Client, PersistentSeed, PersistentSeedId, RefreshTokenId, Consent, RefreshTokenData};
 use crate::core::types::{ClientId, RedirectUri, Expire, HashedClientSecret, HashedAuthCode, Scope, ChallengeId};
 use crate::db::models::Code;
 use crate::provider::error::Error;
@@ -278,7 +278,7 @@ impl DbStore {
     pub fn store_persistent_seed(&self, seed: &PersistentSeed) -> Result<(), Error> {
 	use schema::persistent_seeds::dsl::persistent_seeds;
 	
-	let subject = seed.auth_data.subject.clone();
+	let subject = seed.subject.clone();
 	let auth_data = serde_json::to_string(&seed.auth_data)?;
 	let seed_id = seed.id.0.clone();
 	let client_id = seed.client_id.0.clone();
@@ -312,6 +312,7 @@ impl DbStore {
 	    Some(s) => Some(PersistentSeed {
 		id: PersistentSeedId(s.persistent_seed_id),
 		client_id: ClientId(s.client_id),
+		subject: s.subject,
 		auth_data: serde_json::from_str(&s.auth_data)?
 	    }),
 	    _ => None
@@ -339,7 +340,27 @@ impl DbStore {
 	Ok(())
     }
 
-    pub fn invalidate_refresh_token(&self, id: RefreshTokenId) -> Result<(), Error> {
+    pub fn put_refresh_token(&self, data: RefreshTokenData) -> Result<(), Error> {
+	use schema::refresh_tokens::dsl::refresh_tokens;
+
+	let expiry = RefreshTokenData::expiry().into();
+
+	let model = models::RefreshToken {
+	    refresh_token_id: data.id.0,
+	    invalid_after: expiry,
+	    persistent_seed_id: data.seed.0,
+	};
+
+	block_in_place(|| {
+	    diesel::insert_into(refresh_tokens)
+		.values(model)
+		.execute(&self.conn())
+	})?;
+
+	Ok(())
+    }
+
+    pub fn invalidate_refresh_token(&self, id: &RefreshTokenId) -> Result<(), Error> {
 	use schema::refresh_tokens::dsl::refresh_tokens;
 
 	block_in_place(|| {
@@ -351,15 +372,26 @@ impl DbStore {
 	Ok(())
     }
 
-    pub fn validate_refresh_token(&self, id: RefreshTokenId) -> Result<(), Error> {
+    pub fn find_refresh_token_seed(&self, id: &RefreshTokenId) -> Result<Option<PersistentSeed>, Error> {
 	use schema::refresh_tokens::dsl::refresh_tokens;
+	use schema::persistent_seeds::dsl::persistent_seeds;
 
-	block_in_place(|| {
+	let result = block_in_place(|| {
 	    refresh_tokens.find(&id.0)
-		.first::<models::RefreshToken>(&self.conn())
+		.inner_join(persistent_seeds)
+		.first::<(models::RefreshToken, models::PersistentSeed)>(&self.conn())
+		.optional()
 	})?;
 
-	Ok(())
+	Ok(match result {
+	    Some((_, s)) => Some(PersistentSeed {
+		id: PersistentSeedId(s.persistent_seed_id),
+		client_id: ClientId(s.client_id),
+		subject: s.subject,
+		auth_data: serde_json::from_str(&s.auth_data)?
+	    }),
+	    _ => None
+	})
     }
 
     pub fn get_all_consents(&self, subject: &str) -> Result<Vec<Consent>, Error> {
