@@ -1,0 +1,10 @@
+build:
+  stage: build
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+  tags:
+    - docker-build
+  script:
+    - sudo -g docker docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
+    - sudo -g docker docker build -t "${CI_REGISTRY_IMAGE}:${CI_COMMIT_SHORT_SHA}" .
+    - sudo -g docker docker push "${CI_REGISTRY_IMAGE}:${CI_COMMIT_SHORT_SHA}"
