@@ -1,6 +1,7 @@
 use crate::auth::{ClientCredentials, UpdateChallengeDataRequest};
 use crate::core::models::{Consent, ConsentId};
 use crate::core::types::{BearerToken, ChallengeId, ClientId};
+use crate::provider::error::Error;
 
 use std::sync::Arc;
 use warp::{Filter, Rejection};
@@ -50,6 +51,9 @@ fn body_with_credentials<T: serde::de::DeserializeOwned + Send>(
     basic
         .or(body)
         .unify()
+	.or_else(|_| async move {
+	    Err(warp::reject::custom(AuthRejection::Unauthorized))
+	})
         .map(|w: WithCredentials<T>| w.split())
 }
 

@@ -8,6 +8,7 @@ pub enum AuthRejection {
     Authorization(Redirect<WithState<AuthorizationError>>),
     AccessToken(AccessTokenError),
     BadRequest(BadRequest),
+    Unauthorized,
     ServerError
 }
 
@@ -17,6 +18,7 @@ impl From<Error> for AuthRejection {
     fn from(e: Error) -> Self {
 	match e {
 	    // TODO
+	    Error::Unauthorized => AuthRejection::Unauthorized,
 	    Error::BadRequest => AuthRejection::BadRequest(BadRequest::ServerError),
 	    _ => AuthRejection::ServerError
 	}
@@ -69,7 +71,10 @@ pub async fn handle_reject(err: Rejection) -> Result<impl Reply, Rejection> {
                 ).into_response()),
 		AuthRejection::ServerError => Ok(
 		    warp::reply::with_status("Server Error", warp::http::StatusCode::INTERNAL_SERVER_ERROR)
-			.into_response())
+			.into_response()),
+		AuthRejection::Unauthorized => Ok(
+		    warp::reply::with_status("Unauthorized", warp::http::StatusCode::UNAUTHORIZED)
+			.into_response())		
             }
         }
         _ => Err(err),
