@@ -10,7 +10,7 @@ pub fn oauth_endpoint(
 ) -> impl warp::Filter<Extract = (impl warp::Reply,), Error = warp::Rejection> + Clone {
     let with_provider = warp::any().map(move || provider.clone());
 
-    let authenticate = warp::path("authenticate")
+    let authenticate = warp::path("authorize")
         .and(with_provider.clone())
         .and(warp::filters::query::query())
         .and_then(|provider: Arc<OAuth2Provider>, req| async move {
