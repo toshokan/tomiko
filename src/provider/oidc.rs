@@ -18,10 +18,12 @@ impl OAuth2Provider {
         scope: &Scope,
         extension_data: &Option<AuthCodeExt>,
     ) -> Option<AccessTokenResponse> {
-        match extension_data {
-            Some(data) if scope.has_openid() => self.handle_oidc(client_id, subject, data.clone()),
-            _ => None,
-        }
+        if scope.has_openid() {
+            let data = extension_data.clone().unwrap_or_default();
+            self.handle_oidc(client_id, subject, data)
+        } else {
+	    None
+	}
     }
 
     pub fn handle_implicit_oidc(
