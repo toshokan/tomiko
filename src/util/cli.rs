@@ -27,13 +27,18 @@ pub struct Options {
 
 #[derive(Parser)]
 enum SubCommand {
+    ListClients(ListClients),
     CreateClient(CreateClient),
     DeleteClient(DeleteClient),
+    ListClientUris(ListClientUris),
     AddClientUri(AddClientUri),
     DeleteClientUri(DeleteClientUri),
     AddClientScope(AddClientScope),
     DeleteClientScope(DeleteClientScope),
 }
+
+#[derive(Parser)]
+struct ListClients;
 
 #[derive(Parser)]
 struct CreateClient {
@@ -49,6 +54,12 @@ struct CreateClient {
 struct DeleteClient {
     #[clap(short, long)]
     id: String,
+}
+
+#[derive(Parser)]
+struct ListClientUris {
+    #[clap(short, long)]
+    id: String
 }
 
 #[derive(Parser)]
@@ -91,6 +102,21 @@ fn get_hasher(secret: &str) -> HashingService {
     HashingService::with_secret_key(secret.to_string())
 }
 
+fn list_clients(_c: &ListClients, opts: &Options) {
+    use schema::clients::dsl::{clients, client_id};
+
+    let db = get_database(&opts.database_url);
+
+    let results = clients
+	.order(client_id)
+	.get_results::<models::Client>(&db)
+	.expect("Failed to get clients");
+
+    for client in results {
+	println!("{} (name: \"{}\")", client.client_id, client.name);
+    }
+}
+
 fn create_client(c: &CreateClient, opts: &Options) {
     use schema::clients::dsl::clients;
 
@@ -122,6 +148,26 @@ fn delete_client(c: &DeleteClient, opts: &Options) {
     diesel::delete(clients.find(&c.id))
         .execute(&db)
         .expect("Failed to delete client");
+}
+
+fn list_client_uris(c: &ListClientUris, opts: &Options) {
+    use schema::clients::dsl::clients;
+    use schema::uris::dsl::{uris, client_id, uri as uri_col};
+
+    let db = get_database(&opts.database_url);
+
+    clients.find(&c.id)
+	.get_result::<models::Client>(&db)
+	.expect("Failed to find client");
+
+    let results = uris.filter(client_id.eq(&c.id))
+	.order(uri_col)
+	.get_results::<models::Uri>(&db)
+	.expect("Failed to get client URIs");
+
+    for uri in results {
+	println!("{}", uri.uri);
+    }
 }
 
 fn add_client_uri(c: &AddClientUri, opts: &Options) {
@@ -186,8 +232,10 @@ pub fn run_cli_action(opts: Options) {
     use SubCommand::*;
 
     match &opts.command {
+	ListClients(c) => list_clients(c, &opts),
         CreateClient(c) => create_client(c, &opts),
         DeleteClient(c) => delete_client(c, &opts),
+	ListClientUris(c) => list_client_uris(c, &opts),
         AddClientUri(c) => add_client_uri(c, &opts),
         DeleteClientUri(c) => delete_client_uri(c, &opts),
         AddClientScope(c) => add_client_scope(c, &opts),
